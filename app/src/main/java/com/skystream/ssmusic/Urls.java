@@ -57,4 +57,34 @@ final class Urls {
         }
         return lowerUrl.substring(pathStart, pathEnd);
     }
+
+    static String queryParameterOf(String url, String name) {
+        if (url == null || name == null) {
+            return null;
+        }
+        int queryStart = url.indexOf('?');
+        if (queryStart < 0) {
+            return null;
+        }
+        int queryEnd = url.indexOf('#', queryStart + 1);
+        if (queryEnd < 0) {
+            queryEnd = url.length();
+        }
+        int parameterStart = queryStart + 1;
+        while (parameterStart < queryEnd) {
+            int parameterEnd = url.indexOf('&', parameterStart);
+            if (parameterEnd < 0 || parameterEnd > queryEnd) {
+                parameterEnd = queryEnd;
+            }
+            int valueStart = url.indexOf('=', parameterStart);
+            if (valueStart < 0 || valueStart > parameterEnd) {
+                valueStart = parameterEnd;
+            }
+            if (url.substring(parameterStart, valueStart).equals(name)) {
+                return valueStart < parameterEnd ? url.substring(valueStart + 1, parameterEnd) : "";
+            }
+            parameterStart = parameterEnd + 1;
+        }
+        return null;
+    }
 }

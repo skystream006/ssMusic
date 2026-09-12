@@ -1,5 +1,7 @@
 package com.skystream.ssmusic;
 
+import java.util.Locale;
+
 /**
  * User preference values and the URL/user-agent rules that depend on them. Kept free of
  * Android dependencies so it can be unit tested on the JVM.
@@ -19,6 +21,7 @@ public final class Preferences {
                     + "Chrome/120.0.0.0 Safari/537.36";
 
     private static final String HOME_URL = "https://music.youtube.com/";
+    private static final String WATCH_URL = "https://music.youtube.com/watch";
 
     private Preferences() {
     }
@@ -34,5 +37,40 @@ public final class Preferences {
     public static String restoreUrl(String savedUrl) {
         String normalized = SiteScope.normalizeInAppUrl(savedUrl);
         return SiteScope.isPlaybackUrl(normalized) ? normalized : HOME_URL;
+    }
+
+    public static String playbackIdentityUrl(String url) {
+        String normalized = SiteScope.normalizeInAppUrl(url);
+        if (!SiteScope.isPlaybackUrl(normalized)
+                || !"/watch".equals(Urls.pathOf(normalized.toLowerCase(Locale.US)))) {
+            return null;
+        }
+        String video = Urls.queryParameterOf(normalized, "v");
+        if (video == null || video.isEmpty()) {
+            return null;
+        }
+        StringBuilder result = new StringBuilder(WATCH_URL).append("?v=").append(video);
+        String playlist = Urls.queryParameterOf(normalized, "list");
+        if (playlist != null && !playlist.isEmpty()) {
+            result.append("&list=").append(playlist);
+        }
+        return result.toString();
+    }
+
+    public static String playbackUrlWithTimestamp(String url, double seconds) {
+        if (!Double.isFinite(seconds) || seconds < 0d) {
+            return null;
+        }
+        String identity = playbackIdentityUrl(url);
+        if (identity == null) {
+            return null;
+        }
+        return identity + "&t=" + (long) Math.floor(seconds);
+    }
+
+    public static boolean isSamePlaybackItem(String firstUrl, String secondUrl) {
+        String first = playbackIdentityUrl(firstUrl);
+        String second = playbackIdentityUrl(secondUrl);
+        return first != null && first.equals(second);
     }
 }

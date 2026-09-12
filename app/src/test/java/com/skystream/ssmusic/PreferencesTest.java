@@ -25,6 +25,28 @@ public class PreferencesTest {
     }
 
     @Test
+    public void createsPlaybackIdentityFromVideoAndPlaylist() {
+        assertEquals("https://music.youtube.com/watch?v=song123&list=playlist456",
+                Preferences.playbackIdentityUrl(
+                        "https://music.youtube.com/watch?list=playlist456&v=song123&t=42&feature=share"));
+    }
+
+    @Test
+    public void createsPlaybackUrlWithTimestamp() {
+        assertEquals("https://music.youtube.com/watch?v=song123&list=playlist456&t=120",
+                Preferences.playbackUrlWithTimestamp(
+                        "https://music.youtube.com/watch?v=song123&list=playlist456&t=5",
+                        120.75d));
+    }
+
+    @Test
+    public void comparesPlaybackItemsWithoutTimestamp() {
+        assertTrue(Preferences.isSamePlaybackItem(
+                "https://music.youtube.com/watch?v=song123&list=playlist456&t=5",
+                "https://music.youtube.com/watch?list=playlist456&v=song123&t=120"));
+    }
+
+    @Test
     public void fallsBackHomeForMissingOrUntrustedLocation() {
         assertEquals(Preferences.homeUrl(), Preferences.restoreUrl(null));
         assertEquals(Preferences.homeUrl(),

@@ -217,7 +217,8 @@ public class MainActivity extends AppCompatActivity {
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         applyTheme(preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM));
         setContentView(R.layout.activity_main);
-        lastPersistedPositionUrl = preferences.getString(KEY_LAST_POSITION_URL, null);
+        lastPersistedPositionUrl = Preferences.playbackIdentityUrl(
+                preferences.getString(KEY_LAST_POSITION_URL, null));
         lastPersistedPositionSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
         lastReportedPositionUrl = lastPersistedPositionUrl;
         lastReportedPositionSeconds = lastPersistedPositionSeconds;
@@ -579,26 +580,36 @@ public class MainActivity extends AppCompatActivity {
     private void persistLocation(String url) {
         String normalized = SiteScope.normalizeInAppUrl(url);
         if (SiteScope.isPlaybackUrl(normalized)) {
+            if (Preferences.isSamePlaybackItem(normalized, lastPersistedPositionUrl)) {
+                String withTimestamp = Preferences.playbackUrlWithTimestamp(
+                        normalized, lastPersistedPositionSeconds);
+                if (withTimestamp != null) {
+                    normalized = withTimestamp;
+                }
+            }
             preferences.edit().putString(KEY_LAST_URL, normalized).apply();
         }
     }
 
     private void persistPlaybackPosition(String url, double seconds) {
         String normalized = SiteScope.normalizeInAppUrl(url);
-        if (!SiteScope.isPlaybackUrl(normalized) || !Double.isFinite(seconds) || seconds < 0d) {
+        String identityUrl = Preferences.playbackIdentityUrl(normalized);
+        if (identityUrl == null || !Double.isFinite(seconds) || seconds < 0d) {
             return;
         }
         // Persist only meaningful progress changes to avoid high-frequency disk writes.
         float value = (float) seconds;
-        if (normalized.equals(lastPersistedPositionUrl)
+        if (identityUrl.equals(lastPersistedPositionUrl)
                 && Math.abs(value - lastPersistedPositionSeconds) < 1f) {
             return;
         }
+        String urlWithTimestamp = Preferences.playbackUrlWithTimestamp(normalized, value);
         preferences.edit()
-                .putString(KEY_LAST_POSITION_URL, normalized)
+                .putString(KEY_LAST_POSITION_URL, identityUrl)
                 .putFloat(KEY_LAST_POSITION_SECONDS, value)
+                .putString(KEY_LAST_URL, urlWithTimestamp)
                 .apply();
-        lastPersistedPositionUrl = normalized;
+        lastPersistedPositionUrl = identityUrl;
         lastPersistedPositionSeconds = value;
     }
 
@@ -612,7 +623,8 @@ public class MainActivity extends AppCompatActivity {
     private void restorePlaybackPosition(WebView view, String url) {
         String normalized = SiteScope.normalizeInAppUrl(url);
         if (!SiteScope.isPlaybackUrl(normalized)
-                || !normalized.equals(preferences.getString(KEY_LAST_POSITION_URL, null))) {
+                || !Preferences.isSamePlaybackItem(normalized,
+                preferences.getString(KEY_LAST_POSITION_URL, null))) {
             return;
         }
         // Restore only for the same playback URL so stale progress is never applied elsewhere.
