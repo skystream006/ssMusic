@@ -70,6 +70,23 @@ public class MainActivity extends AppCompatActivity {
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    // Pick likely main media in priority order: paused with progress, paused fallback, then any non-ended node.
+    private static final String PICK_MEDIA_NODE_HELPER =
+            ";function pickMediaNode(nodes){"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "if(!nodes[i].ended&&nodes[i].paused&&((nodes[i].currentTime||0)>0)){return nodes[i];}"
+                    + "}"
+                    + "for(var j=0;j<nodes.length;j++){if(!nodes[j].ended&&nodes[j].paused){return nodes[j];}}"
+                    + "for(var k=0;k<nodes.length;k++){if(!nodes[k].ended){return nodes[k];}}"
+                    + "return nodes.length?nodes[0]:null;"
+                    + "}";
+    private static final String PAUSE_ACTIVE_MEDIA_HELPER =
+            ";function pauseActiveMedia(nodes){"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "var node=nodes[i];"
+                    + "if(!node.ended&&!node.paused&&typeof node.pause==='function'){node.pause();}"
+                    + "}"
+                    + "}";
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -118,6 +135,8 @@ public class MainActivity extends AppCompatActivity {
                     + "prune(window.ytInitialData,0);"
                     + "})()";
 
+    // Treat unpaused-but-buffering media as active in fallback checks so app backgrounding
+    // transitions do not briefly report paused and make notification controls oscillate.
     static final String BACKGROUND_PLAYBACK_SCRIPT =
             "(function(){"
                     + "if(window.__ssmusicBackgroundPlaybackInstalled){return;}"
@@ -151,10 +170,14 @@ public class MainActivity extends AppCompatActivity {
                     + "var position=0;"
                     + "var duration=0;"
                     + "var active=null;"
+                    + "var tentative=null;"
                     + "for(var i=0;i<nodes.length;i++){"
                     + "var node=nodes[i];"
                     + "if(!node.paused&&!node.ended&&node.readyState>2){"
                     + "active=node;playing=true;break;"
+                    + "}"
+                    + "if(!tentative&&!node.paused&&!node.ended&&node.readyState>=2){"
+                    + "tentative=node;"
                     + "}"
                     + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
                     + "position=node.currentTime;"
@@ -162,6 +185,7 @@ public class MainActivity extends AppCompatActivity {
                     + "if(nodeDuration>0){duration=nodeDuration;}"
                     + "}"
                     + "}"
+                    + "if(!active&&tentative){active=tentative;playing=true;}"
                     + "if(active){position=active.currentTime||0;"
                     + "duration=(typeof active.duration==='number'&&isFinite(active.duration))?active.duration:0;}"
                     + "if(window.ssmusicPlayback){"
@@ -698,13 +722,22 @@ public class MainActivity extends AppCompatActivity {
         }
         String script;
         if (command == MEDIA_COMMAND_PLAY) {
-            script = "(function(){var node=document.querySelector('audio,video');"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');var active=null;var node=null;"
+                    + PICK_MEDIA_NODE_HELPER
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "if(!nodes[i].ended&&!nodes[i].paused){active=nodes[i];break;}"
+                    + "}"
+                    + "if(!active){"
+                    + "node=pickMediaNode(nodes);"
                     + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
-                    + "}if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
+                    + "}"
+                    + "}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else if (command == MEDIA_COMMAND_PAUSE || command == MEDIA_COMMAND_STOP) {
-            script = "(function(){var node=document.querySelector('audio,video');"
-                    + "if(node&&typeof node.pause==='function'){node.pause();}"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');"
+                    + PAUSE_ACTIVE_MEDIA_HELPER
+                    + "pauseActiveMedia(nodes);"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else if (command == MEDIA_COMMAND_NEXT) {
             script = "(function(){"
@@ -721,16 +754,22 @@ public class MainActivity extends AppCompatActivity {
         } else if (command == MEDIA_COMMAND_SEEK) {
             String position = String.format(Locale.US, "%.3f", Math.max(0L, positionMs) / 1000d);
             script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
-                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].paused&&!nodes[i].ended&&nodes[i].readyState>2){node=nodes[i];break;}}"
+                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].ended&&!nodes[i].paused){node=nodes[i];break;}}"
                     + "if(!node&&nodes.length){node=nodes[0];}"
                     + "if(node){try{node.currentTime=" + position + ";}catch(e){}}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else {
-            script = "(function(){var node=document.querySelector('audio,video');"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
+                    + PICK_MEDIA_NODE_HELPER
+                    + PAUSE_ACTIVE_MEDIA_HELPER
+                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].ended&&!nodes[i].paused){node=nodes[i];break;}}"
                     + "if(node){"
-                    + "if(node.paused&&typeof node.play==='function'){"
+                    + "pauseActiveMedia(nodes);"
+                    + "}else{"
+                    + "node=pickMediaNode(nodes);"
+                    + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
-                    + "}else if(typeof node.pause==='function'){node.pause();}"
+                    + "}"
                     + "}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         }
