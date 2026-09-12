@@ -55,7 +55,7 @@ public final class AdBlocker {
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
             return false;
         }
-        String host = hostOf(lower);
+        String host = Urls.hostOf(lower);
         if (host != null) {
             for (String blocked : BLOCKED_HOSTS) {
                 if (host.equals(blocked) || host.endsWith("." + blocked)) {
@@ -63,8 +63,9 @@ public final class AdBlocker {
                 }
             }
         }
+        String requestPath = Urls.pathOf(lower);
         for (String path : BLOCKED_PATHS) {
-            if (lower.contains(path)) {
+            if (requestPath.contains(path)) {
                 return true;
             }
         }
@@ -89,29 +90,4 @@ public final class AdBlocker {
         return false;
     }
 
-    private static String hostOf(String lowerUrl) {
-        int schemeEnd = lowerUrl.indexOf("://");
-        if (schemeEnd < 0) {
-            return null;
-        }
-        int start = schemeEnd + 3;
-        int end = lowerUrl.length();
-        for (int i = start; i < lowerUrl.length(); i++) {
-            char c = lowerUrl.charAt(i);
-            if (c == '/' || c == '?' || c == '#') {
-                end = i;
-                break;
-            }
-        }
-        String authority = lowerUrl.substring(start, end);
-        int at = authority.lastIndexOf('@');
-        if (at >= 0) {
-            authority = authority.substring(at + 1);
-        }
-        int colon = authority.indexOf(':');
-        if (colon >= 0) {
-            authority = authority.substring(0, colon);
-        }
-        return authority.isEmpty() ? null : authority;
-    }
 }

@@ -25,6 +25,7 @@ public class SiteScopeTest {
     @Test
     public void blocksOutOfScopeHosts() {
         assertFalse(SiteScope.isInAppUrl("https://example.com/"));
+        assertFalse(SiteScope.isInAppUrl("https://www.google.com/search?q=music"));
         assertNull(SiteScope.normalizeInAppUrl("javascript:alert(1)"));
     }
 }

@@ -12,14 +12,13 @@ public final class SiteScope {
 
     private static final List<String> ALLOWED_HOSTS = Arrays.asList(
             "music.youtube.com",
-            "youtube.com",
             "ytimg.com",
             "ggpht.com",
             "googlevideo.com",
-            "google.com",
+            "accounts.google.com",
             "gstatic.com",
             "googleusercontent.com",
-            "googleapis.com"
+            "apis.google.com"
     );
 
     private SiteScope() {
@@ -39,7 +38,7 @@ public final class SiteScope {
         if (!isHttps && !isHttp) {
             return null;
         }
-        String host = hostOf(lower);
+        String host = Urls.hostOf(lower);
         if (host == null) {
             return null;
         }
@@ -51,25 +50,4 @@ public final class SiteScope {
         return null;
     }
 
-    private static String hostOf(String lowerUrl) {
-        int start = lowerUrl.indexOf("://") + 3;
-        int end = lowerUrl.length();
-        for (int i = start; i < lowerUrl.length(); i++) {
-            char c = lowerUrl.charAt(i);
-            if (c == '/' || c == '?' || c == '#') {
-                end = i;
-                break;
-            }
-        }
-        String authority = lowerUrl.substring(start, end);
-        int at = authority.lastIndexOf('@');
-        if (at >= 0) {
-            authority = authority.substring(at + 1);
-        }
-        int colon = authority.indexOf(':');
-        if (colon >= 0) {
-            authority = authority.substring(0, colon);
-        }
-        return authority.isEmpty() ? null : authority;
-    }
 }

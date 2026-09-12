@@ -40,7 +40,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "ssmusic_prefs";
     private static final String KEY_THEME = "theme";
     private static final String KEY_DESKTOP_MODE = "desktop_mode";
-    private static final int REQUEST_BROWSER_PERMISSIONS = 1001;
+    private static final int REQUEST_APP_PERMISSIONS = 1001;
+    private static final int REQUEST_WEB_PERMISSIONS = 1002;
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -143,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_BROWSER_PERMISSIONS && pendingPermissionRequest != null) {
+        if (requestCode == REQUEST_WEB_PERMISSIONS && pendingPermissionRequest != null) {
             PermissionRequest request = pendingPermissionRequest;
             pendingPermissionRequest = null;
             grantWebPermissionsIfAllowed(request, false);
@@ -160,15 +161,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setUserAgentString(Preferences.userAgent(isDesktopMode()));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        }
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            cookieManager.setAcceptThirdPartyCookies(webView, true);
-        }
+        cookieManager.setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new MusicWebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
@@ -225,7 +222,6 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle(R.string.preferences)
                 .setView(content)
                 .create();
-        Window window = dialog.getWindow();
         dialog.setOnShowListener(d -> {
             Window shownWindow = dialog.getWindow();
             if (shownWindow != null) {
@@ -234,9 +230,6 @@ public class MainActivity extends AppCompatActivity {
                         WindowManager.LayoutParams.WRAP_CONTENT);
             }
         });
-        if (window != null) {
-            window.setGravity(Gravity.BOTTOM);
-        }
         dialog.show();
     }
 
@@ -278,7 +271,7 @@ public class MainActivity extends AppCompatActivity {
             addMissingPermission(missing, Manifest.permission.POST_NOTIFICATIONS);
         }
         if (!missing.isEmpty()) {
-            requestPermissions(missing.toArray(new String[0]), REQUEST_BROWSER_PERMISSIONS);
+            requestPermissions(missing.toArray(new String[0]), REQUEST_APP_PERMISSIONS);
         }
     }
 
@@ -290,10 +283,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void grantWebPermissionsIfAllowed(PermissionRequest request, boolean mayRequestMissing) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return;
-        }
-        if (!SiteScope.isInAppUrl(request.getOrigin().toString())) {
+        if (!isTrustedPermissionOrigin(request.getOrigin().toString())) {
             request.deny();
             return;
         }
@@ -317,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
         }
         if (mayRequestMissing && !missing.isEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             pendingPermissionRequest = request;
-            requestPermissions(missing.toArray(new String[0]), REQUEST_BROWSER_PERMISSIONS);
+            requestPermissions(missing.toArray(new String[0]), REQUEST_WEB_PERMISSIONS);
         } else if (!grant.isEmpty()) {
             request.grant(grant.toArray(new String[0]));
         } else {
@@ -328,6 +318,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean hasPermission(String permission) {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                 || checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean isTrustedPermissionOrigin(String origin) {
+        String host = Urls.hostOf(origin.toLowerCase());
+        return "music.youtube.com".equals(host) || "accounts.google.com".equals(host);
     }
 
     private void injectAdBlockingScripts(WebView view) {

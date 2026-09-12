@@ -22,6 +22,7 @@ public class AdBlockerTest {
     @Test
     public void keepsMusicAndHistoryRequests() {
         assertFalse(AdBlocker.isAd("https://music.youtube.com/watch?v=abc"));
+        assertFalse(AdBlocker.isAd("https://music.youtube.com/watch?list=/ads/"));
         assertFalse(AdBlocker.isAd("https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"));
         assertFalse(AdBlocker.isAd("about:blank"));
     }
