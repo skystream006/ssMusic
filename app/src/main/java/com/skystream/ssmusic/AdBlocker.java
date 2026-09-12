@@ -17,9 +17,6 @@ public final class AdBlocker {
             "googletagservices.com",
             "googletagmanager.com",
             "adservice.google.com",
-            "pagead2.googlesyndication.com",
-            "static.doubleclick.net",
-            "tpc.googlesyndication.com",
             "ads.youtube.com"
     );
 

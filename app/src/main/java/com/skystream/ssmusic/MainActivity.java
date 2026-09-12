@@ -106,6 +106,7 @@ public class MainActivity extends AppCompatActivity {
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> showPreferences());
         configureWebView();
+        settingsButton.setVisibility(View.VISIBLE);
         requestAppPermissions();
 
         String target = urlFromIntent(getIntent());
