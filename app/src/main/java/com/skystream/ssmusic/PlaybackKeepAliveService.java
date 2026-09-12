@@ -189,7 +189,8 @@ public class PlaybackKeepAliveService extends Service {
             positionMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_POSITION_MS, positionMs));
             durationMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_DURATION_MS, durationMs));
             updateMediaMetadata();
-            setPlaying(intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing), notify);
+            setPlaying(intent.hasExtra(EXTRA_SYNC_PLAYING)
+                    ? intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing) : playing, notify);
         }
     }
 
