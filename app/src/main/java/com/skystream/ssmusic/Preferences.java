@@ -57,7 +57,7 @@ public final class Preferences {
         return result.toString();
     }
 
-    public static String playbackUrlWithTimestamp(String url, double seconds) {
+    public static String buildPersistedPlaybackUrl(String url, double seconds) {
         if (!Double.isFinite(seconds) || seconds < 0d) {
             return null;
         }

@@ -580,8 +580,10 @@ public class MainActivity extends AppCompatActivity {
     private void persistLocation(String url) {
         String normalized = SiteScope.normalizeInAppUrl(url);
         if (SiteScope.isPlaybackUrl(normalized)) {
-            if (Preferences.isSamePlaybackItem(normalized, lastPersistedPositionIdentityUrl)) {
-                String withTimestamp = Preferences.playbackUrlWithTimestamp(
+            String currentIdentityUrl = Preferences.playbackIdentityUrl(normalized);
+            if (currentIdentityUrl != null
+                    && currentIdentityUrl.equals(lastPersistedPositionIdentityUrl)) {
+                String withTimestamp = Preferences.buildPersistedPlaybackUrl(
                         normalized, lastPersistedPositionSeconds);
                 if (withTimestamp != null) {
                     normalized = withTimestamp;
@@ -603,7 +605,7 @@ public class MainActivity extends AppCompatActivity {
                 && Math.abs(value - lastPersistedPositionSeconds) < 1f) {
             return;
         }
-        String urlWithTimestamp = Preferences.playbackUrlWithTimestamp(normalized, value);
+        String urlWithTimestamp = Preferences.buildPersistedPlaybackUrl(normalized, value);
         preferences.edit()
                 .putString(KEY_LAST_POSITION_URL, identityUrl)
                 .putFloat(KEY_LAST_POSITION_SECONDS, value)

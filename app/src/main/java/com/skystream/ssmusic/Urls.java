@@ -76,12 +76,11 @@ final class Urls {
             if (parameterEnd < 0 || parameterEnd > queryEnd) {
                 parameterEnd = queryEnd;
             }
-            int valueStart = url.indexOf('=', parameterStart);
-            if (valueStart < 0 || valueStart > parameterEnd) {
-                valueStart = parameterEnd;
-            }
-            if (url.substring(parameterStart, valueStart).equals(name)) {
-                return valueStart < parameterEnd ? url.substring(valueStart + 1, parameterEnd) : "";
+            String parameter = url.substring(parameterStart, parameterEnd);
+            int valueStart = parameter.indexOf('=');
+            String parameterName = valueStart < 0 ? parameter : parameter.substring(0, valueStart);
+            if (parameterName.equals(name)) {
+                return valueStart < 0 ? "" : parameter.substring(valueStart + 1);
             }
             parameterStart = parameterEnd + 1;
         }

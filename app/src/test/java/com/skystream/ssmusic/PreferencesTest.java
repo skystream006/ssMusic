@@ -33,9 +33,9 @@ public class PreferencesTest {
     }
 
     @Test
-    public void createsPlaybackUrlWithTimestamp() {
+    public void buildsPersistedPlaybackUrlWithTimestamp() {
         assertEquals("https://music.youtube.com/watch?v=song123&list=playlist456&t=120",
-                Preferences.playbackUrlWithTimestamp(
+                Preferences.buildPersistedPlaybackUrl(
                         "https://music.youtube.com/watch?v=song123&list=playlist456&t=5",
                         120.75d));
     }
@@ -43,9 +43,9 @@ public class PreferencesTest {
     @Test
     public void rejectsInvalidPlaybackTimestamps() {
         String currentSong = "https://music.youtube.com/watch?v=song123&list=playlist456";
-        assertNull(Preferences.playbackUrlWithTimestamp(currentSong, -1d));
-        assertNull(Preferences.playbackUrlWithTimestamp(currentSong, Double.NaN));
-        assertNull(Preferences.playbackUrlWithTimestamp(currentSong, Double.POSITIVE_INFINITY));
+        assertNull(Preferences.buildPersistedPlaybackUrl(currentSong, -1d));
+        assertNull(Preferences.buildPersistedPlaybackUrl(currentSong, Double.NaN));
+        assertNull(Preferences.buildPersistedPlaybackUrl(currentSong, Double.POSITIVE_INFINITY));
     }
 
     @Test
