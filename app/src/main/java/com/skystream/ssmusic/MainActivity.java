@@ -70,6 +70,15 @@ public class MainActivity extends AppCompatActivity {
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private static final String PICK_MEDIA_NODE_HELPER =
+            "function pickMediaNode(nodes){"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "if(!nodes[i].ended&&nodes[i].paused&&((nodes[i].currentTime||0)>0)){return nodes[i];}"
+                    + "}"
+                    + "for(var j=0;j<nodes.length;j++){if(!nodes[j].ended&&nodes[j].paused){return nodes[j];}}"
+                    + "for(var k=0;k<nodes.length;k++){if(!nodes[k].ended){return nodes[k];}}"
+                    + "return nodes.length?nodes[0]:null;"
+                    + "}";
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -118,6 +127,8 @@ public class MainActivity extends AppCompatActivity {
                     + "prune(window.ytInitialData,0);"
                     + "})()";
 
+    // Treat unpaused-but-buffering media as active in fallback checks so app backgrounding
+    // transitions do not briefly report paused and make notification controls oscillate.
     static final String BACKGROUND_PLAYBACK_SCRIPT =
             "(function(){"
                     + "if(window.__ssmusicBackgroundPlaybackInstalled){return;}"
@@ -704,23 +715,12 @@ public class MainActivity extends AppCompatActivity {
         String script;
         if (command == MEDIA_COMMAND_PLAY) {
             script = "(function(){var nodes=document.querySelectorAll('audio,video');var active=null;var node=null;"
+                    + PICK_MEDIA_NODE_HELPER
                     + "for(var i=0;i<nodes.length;i++){"
                     + "if(!nodes[i].ended&&!nodes[i].paused){active=nodes[i];break;}"
                     + "}"
                     + "if(!active){"
-                    + "for(var j=0;j<nodes.length;j++){"
-                    + "if(!nodes[j].ended&&nodes[j].paused&&((nodes[j].currentTime||0)>0)){node=nodes[j];break;}"
-                    + "}"
-                    + "if(!node){"
-                    + "for(var k=0;k<nodes.length;k++){"
-                    + "if(!nodes[k].ended&&nodes[k].paused){node=nodes[k];break;}"
-                    + "}"
-                    + "}"
-                    + "if(!node){"
-                    + "for(var m=0;m<nodes.length;m++){"
-                    + "if(!nodes[m].ended){node=nodes[m];break;}"
-                    + "}"
-                    + "}"
+                    + "node=pickMediaNode(nodes);"
                     + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
                     + "}"
@@ -754,25 +754,14 @@ public class MainActivity extends AppCompatActivity {
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else {
             script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
+                    + PICK_MEDIA_NODE_HELPER
                     + "for(var i=0;i<nodes.length;i++){if(!nodes[i].ended&&!nodes[i].paused){node=nodes[i];break;}}"
                     + "if(node&&typeof node.pause==='function'){"
                     + "for(var j=0;j<nodes.length;j++){"
                     + "if(!nodes[j].ended&&!nodes[j].paused&&typeof nodes[j].pause==='function'){nodes[j].pause();}"
                     + "}"
                     + "}else{"
-                    + "for(var k=0;k<nodes.length;k++){"
-                    + "if(!nodes[k].ended&&nodes[k].paused&&((nodes[k].currentTime||0)>0)){node=nodes[k];break;}"
-                    + "}"
-                    + "if(!node){"
-                    + "for(var m=0;m<nodes.length;m++){"
-                    + "if(!nodes[m].ended&&nodes[m].paused){node=nodes[m];break;}"
-                    + "}"
-                    + "}"
-                    + "if(!node){"
-                    + "for(var n=0;n<nodes.length;n++){"
-                    + "if(!nodes[n].ended){node=nodes[n];break;}"
-                    + "}"
-                    + "}"
+                    + "node=pickMediaNode(nodes);"
                     + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
                     + "}"
