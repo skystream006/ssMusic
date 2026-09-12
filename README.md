@@ -14,4 +14,4 @@ The app requests the browser permissions YouTube Music may need, including camer
 ./gradlew test assembleDebug
 ```
 
-GitHub Actions builds APK artifacts with the same version-bump and upload workflow used by ssYoutube. The debug build uses the checked-in debug keystore so APK artifacts from later workflow runs can update earlier installs with the same package name.
+GitHub Actions builds APK artifacts with the same version-bump.
