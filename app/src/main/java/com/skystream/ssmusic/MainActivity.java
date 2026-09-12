@@ -143,14 +143,19 @@ public class MainActivity extends AppCompatActivity {
                     + "var playing=false;"
                     + "var position=0;"
                     + "var duration=0;"
+                    + "var active=null;"
                     + "for(var i=0;i<nodes.length;i++){"
                     + "var node=nodes[i];"
+                    + "if(!node.paused&&!node.ended&&node.readyState>2){"
+                    + "active=node;playing=true;break;"
+                    + "}"
                     + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
                     + "position=node.currentTime;"
                     + "duration=(typeof node.duration==='number'&&isFinite(node.duration))?node.duration:0;"
                     + "}"
-                    + "if(!node.paused&&!node.ended&&node.readyState>2){playing=true;break;}"
                     + "}"
+                    + "if(active){position=active.currentTime||0;"
+                    + "duration=(typeof active.duration==='number'&&isFinite(active.duration))?active.duration:0;}"
                     + "if(window.ssmusicPlayback){"
                     + "window.ssmusicPlayback.setPosition(location.href,position,duration);"
                     + "window.ssmusicPlayback.setPlaying(playing);"
@@ -183,6 +188,8 @@ public class MainActivity extends AppCompatActivity {
     private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionUrl;
     private float lastPersistedPositionSeconds;
+    private float lastReportedPositionSeconds;
+    private float lastServicePositionSeconds = Float.NaN;
     private long lastPlaybackDurationMs;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
@@ -203,6 +210,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         lastPersistedPositionUrl = preferences.getString(KEY_LAST_POSITION_URL, null);
         lastPersistedPositionSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
+        lastReportedPositionSeconds = lastPersistedPositionSeconds;
         webView = findViewById(R.id.webview);
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> showPreferences());
@@ -528,7 +536,7 @@ public class MainActivity extends AppCompatActivity {
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_PLAYING,
                 playingState != null ? playingState : playbackActive);
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_POSITION_MS,
-                (long) (lastPersistedPositionSeconds * 1000f));
+                (long) (lastReportedPositionSeconds * 1000f));
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_DURATION_MS,
                 lastPlaybackDurationMs);
         try {
@@ -644,7 +652,9 @@ public class MainActivity extends AppCompatActivity {
                     + "})();";
         } else if (command == MEDIA_COMMAND_SEEK) {
             String position = String.format(Locale.US, "%.3f", Math.max(0L, positionMs) / 1000d);
-            script = "(function(){var node=document.querySelector('audio,video');"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
+                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].paused){node=nodes[i];break;}}"
+                    + "if(!node&&nodes.length){node=nodes[0];}"
                     + "if(node){try{node.currentTime=" + position + ";}catch(e){}}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else {
@@ -694,10 +704,16 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setPosition(String url, double seconds, double duration) {
             persistPlaybackPosition(url, seconds);
+            if (Double.isFinite(seconds) && seconds >= 0d) {
+                lastReportedPositionSeconds = (float) seconds;
+            }
             if (Double.isFinite(duration) && duration > 0d) {
                 lastPlaybackDurationMs = (long) (duration * 1000d);
             }
-            if (playbackActive) {
+            if (playbackActive
+                    && (Float.isNaN(lastServicePositionSeconds)
+                    || Math.abs(lastReportedPositionSeconds - lastServicePositionSeconds) >= 1f)) {
+                lastServicePositionSeconds = lastReportedPositionSeconds;
                 startPlaybackKeepAliveService(Boolean.TRUE);
             }
         }
