@@ -624,7 +624,7 @@ public class MainActivity extends AppCompatActivity {
         String normalized = SiteScope.normalizeInAppUrl(url);
         if (!SiteScope.isPlaybackUrl(normalized)
                 || !Preferences.isSamePlaybackItem(normalized,
-                preferences.getString(KEY_LAST_POSITION_URL, null))) {
+                        preferences.getString(KEY_LAST_POSITION_URL, null))) {
             return;
         }
         // Restore only for the same playback URL so stale progress is never applied elsewhere.
