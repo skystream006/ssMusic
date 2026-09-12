@@ -2,6 +2,7 @@ package com.skystream.ssmusic;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
@@ -36,7 +37,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
-import androidx.annotation.RequiresApi;
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
@@ -472,7 +472,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void shareLog() {
         File logFile = Logger.logFile(this);
-        if (logFile == null || !logFile.isFile() || logFile.length() == 0L) {
+        if (logFile == null || !Logger.hasContent(this)) {
             Toast.makeText(this, R.string.log_empty, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -1020,22 +1020,26 @@ public class MainActivity extends AppCompatActivity {
             CookieManager.getInstance().flush();
         }
 
-        @RequiresApi(Build.VERSION_CODES.M)
+        @TargetApi(Build.VERSION_CODES.M)
         @Override
         public void onReceivedError(WebView view, WebResourceRequest request,
                 WebResourceError error) {
             super.onReceivedError(view, request, error);
-            Logger.warn(TAG, "Resource error " + error.getErrorCode() + " for "
-                    + request.getUrl() + ": " + error.getDescription(), null);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Logger.warn(TAG, "Resource error " + error.getErrorCode() + " for "
+                        + request.getUrl() + ": " + error.getDescription(), null);
+            }
         }
 
-        @RequiresApi(Build.VERSION_CODES.M)
+        @TargetApi(Build.VERSION_CODES.M)
         @Override
         public void onReceivedHttpError(WebView view, WebResourceRequest request,
                 WebResourceResponse errorResponse) {
             super.onReceivedHttpError(view, request, errorResponse);
-            Logger.warn(TAG, "HTTP error " + errorResponse.getStatusCode() + " for "
-                    + request.getUrl(), null);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Logger.warn(TAG, "HTTP error " + errorResponse.getStatusCode() + " for "
+                        + request.getUrl(), null);
+            }
         }
 
         private boolean handleUrl(WebView view, String url) {

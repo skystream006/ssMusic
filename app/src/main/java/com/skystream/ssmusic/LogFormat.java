@@ -128,6 +128,7 @@ public final class LogFormat {
             }
             builder.append("\tat ").append(element).append('\n');
             if (++written >= MAX_STACK_FRAMES) {
+                builder.append("\t... trace truncated\n");
                 break;
             }
         }

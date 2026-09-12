@@ -14,6 +14,7 @@
     <string name="diagnostics">Diagnostics</string>
     <string name="enable_logging">Enable logging</string>
     <string name="enable_logging_summary">Record app activity and stack traces to a log file for debugging.</string>
+    <string name="enable_logging_accessibility">Enable logging. Records app activity and stack traces to a log file for debugging.</string>
     <string name="share_log">Share log</string>
     <string name="clear_log">Clear log</string>
     <string name="log_empty">No log entries recorded yet.</string>

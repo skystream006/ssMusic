@@ -88,12 +88,14 @@
         android:id="@+id/logging_switch"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:contentDescription="@string/enable_logging_accessibility"
         android:text="@string/enable_logging"
         tools:ignore="UseSwitchCompatOrMaterialXml" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:importantForAccessibility="no"
         android:text="@string/enable_logging_summary"
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="12sp" />

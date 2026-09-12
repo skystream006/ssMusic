@@ -110,7 +110,10 @@ public final class Logger {
         return file != null && file.isFile() && file.length() > 0L;
     }
 
-    /** Deletes the current log and its backup. */
+    /**
+     * Deletes the current log and its backup. The deletion is queued behind pending writes,
+     * so it may complete shortly after this call returns.
+     */
     public static void clear(Context context) {
         Context target = context == null ? appContext : context.getApplicationContext();
         if (target == null) {
@@ -203,7 +206,9 @@ public final class Logger {
             return executor;
         }
         synchronized (Logger.class) {
-            if (writer == null) {
+            // Re-check under the lock so a concurrent disable cannot be undone by a log call
+            // that passed the enabled check just before the writer was shut down.
+            if (writer == null && enabled) {
                 writer = Executors.newSingleThreadExecutor(runnable -> {
                     Thread thread = new Thread(runnable, "ssmusic-logger");
                     thread.setDaemon(true);
