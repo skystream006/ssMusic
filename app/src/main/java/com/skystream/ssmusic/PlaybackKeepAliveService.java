@@ -17,6 +17,9 @@ public class PlaybackKeepAliveService extends Service {
     private static final String CHANNEL_ID = "playback";
     private static final int NOTIFICATION_ID = 1;
     private static final String WAKE_LOCK_TAG = "ssmusic:playback";
+    // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
+    // renewed on every onStartCommand call while playback keeps the service alive.
+    private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
 
     private PowerManager.WakeLock wakeLock;
 
@@ -51,16 +54,17 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private void acquireWakeLock() {
-        if (wakeLock != null && wakeLock.isHeld()) {
-            return;
-        }
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (powerManager == null) {
             return;
         }
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG);
-        wakeLock.setReferenceCounted(false);
-        wakeLock.acquire(java.util.concurrent.TimeUnit.HOURS.toMillis(6));
+        if (wakeLock == null) {
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG);
+            wakeLock.setReferenceCounted(false);
+        }
+        // acquire(timeout) renews the timeout even if already held, so repeated
+        // onStartCommand calls keep the lock alive for as long as playback continues.
+        wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
     }
 
     private void releaseWakeLock() {
