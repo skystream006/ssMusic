@@ -609,7 +609,7 @@ public class MainActivity extends AppCompatActivity {
         preferences.edit()
                 .putString(KEY_LAST_POSITION_URL, identityUrl)
                 .putFloat(KEY_LAST_POSITION_SECONDS, value)
-                .putString(KEY_LAST_URL, urlWithTimestamp)
+                .putString(KEY_LAST_URL, urlWithTimestamp == null ? normalized : urlWithTimestamp)
                 .apply();
         lastPersistedPositionIdentityUrl = identityUrl;
         lastPersistedPositionSeconds = value;
