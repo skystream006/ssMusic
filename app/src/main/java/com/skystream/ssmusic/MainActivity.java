@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     static final int MEDIA_COMMAND_PAUSE = 2;
     static final int MEDIA_COMMAND_NEXT = 3;
     static final int MEDIA_COMMAND_PREVIOUS = 4;
+    static final int MEDIA_COMMAND_SEEK = 5;
+    static final String EXTRA_MEDIA_POSITION_MS = "media_position_ms";
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
 
@@ -140,15 +142,17 @@ public class MainActivity extends AppCompatActivity {
                     + "var nodes=document.querySelectorAll('audio,video');"
                     + "var playing=false;"
                     + "var position=0;"
+                    + "var duration=0;"
                     + "for(var i=0;i<nodes.length;i++){"
                     + "var node=nodes[i];"
                     + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
                     + "position=node.currentTime;"
+                    + "duration=(typeof node.duration==='number'&&isFinite(node.duration))?node.duration:0;"
                     + "}"
                     + "if(!node.paused&&!node.ended&&node.readyState>2){playing=true;break;}"
                     + "}"
                     + "if(window.ssmusicPlayback){"
-                    + "window.ssmusicPlayback.setPosition(location.href,position);"
+                    + "window.ssmusicPlayback.setPosition(location.href,position,duration);"
                     + "window.ssmusicPlayback.setPlaying(playing);"
                     + "}"
                     + "}"
@@ -178,13 +182,15 @@ public class MainActivity extends AppCompatActivity {
     private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionUrl;
     private float lastPersistedPositionSeconds;
+    private long lastPlaybackDurationMs;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
             if (!ACTION_MEDIA_COMMAND.equals(intent.getAction())) {
                 return;
             }
-            applyMediaCommand(intent.getIntExtra(EXTRA_MEDIA_COMMAND, MEDIA_COMMAND_TOGGLE));
+            applyMediaCommand(intent.getIntExtra(EXTRA_MEDIA_COMMAND, MEDIA_COMMAND_TOGGLE),
+                    intent.getLongExtra(EXTRA_MEDIA_POSITION_MS, 0L));
         }
     };
 
@@ -225,6 +231,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
+        capturePlaybackPosition();
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
         if (!isFinishing() && isPlaybackLikelyActive()) {
@@ -516,10 +523,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void startPlaybackKeepAliveService(Boolean playingState) {
         Intent serviceIntent = new Intent(this, PlaybackKeepAliveService.class);
-        if (playingState != null) {
-            serviceIntent.setAction(PlaybackKeepAliveService.ACTION_SYNC_PLAYBACK_STATE);
-            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_PLAYING, playingState);
-        }
+        serviceIntent.setAction(PlaybackKeepAliveService.ACTION_SYNC_PLAYBACK_STATE);
+        serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_PLAYING,
+                playingState != null ? playingState : playbackActive);
+        serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_POSITION_MS,
+                (long) (lastPersistedPositionSeconds * 1000f));
+        serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_DURATION_MS,
+                lastPlaybackDurationMs);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -555,6 +565,13 @@ public class MainActivity extends AppCompatActivity {
                 .apply();
         lastPersistedPositionUrl = normalized;
         lastPersistedPositionSeconds = value;
+    }
+
+    private void capturePlaybackPosition() {
+        if (playbackBridgeEnabled) {
+            webView.evaluateJavascript(
+                    "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}", null);
+        }
     }
 
     private void restorePlaybackPosition(WebView view, String url) {
@@ -593,7 +610,7 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(script, null);
     }
 
-    private void applyMediaCommand(int command) {
+    private void applyMediaCommand(int command, long positionMs) {
         if (!playbackBridgeEnabled) {
             return;
         }
@@ -624,6 +641,11 @@ public class MainActivity extends AppCompatActivity {
                     + "if(btn){btn.click();}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}"
                     + "})();";
+        } else if (command == MEDIA_COMMAND_SEEK) {
+            String position = String.format(Locale.US, "%.3f", Math.max(0L, positionMs) / 1000d);
+            script = "(function(){var node=document.querySelector('audio,video');"
+                    + "if(node){try{node.currentTime=" + position + ";}catch(e){}}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else {
             script = "(function(){var node=document.querySelector('audio,video');"
                     + "if(node){"
@@ -669,8 +691,14 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void setPosition(String url, double seconds) {
+        public void setPosition(String url, double seconds, double duration) {
             persistPlaybackPosition(url, seconds);
+            if (Double.isFinite(duration) && duration > 0d) {
+                lastPlaybackDurationMs = (long) (duration * 1000d);
+            }
+            if (playbackActive) {
+                startPlaybackKeepAliveService(Boolean.TRUE);
+            }
         }
 
         @JavascriptInterface

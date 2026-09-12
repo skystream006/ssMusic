@@ -27,6 +27,8 @@ public class PlaybackKeepAliveService extends Service {
     private static final String ACTION_PREVIOUS = "com.skystream.ssmusic.PREVIOUS";
     static final String ACTION_SYNC_PLAYBACK_STATE = "com.skystream.ssmusic.SYNC_PLAYBACK_STATE";
     static final String EXTRA_SYNC_PLAYING = "sync_playing";
+    static final String EXTRA_SYNC_POSITION_MS = "sync_position_ms";
+    static final String EXTRA_SYNC_DURATION_MS = "sync_duration_ms";
     // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
     // renewed on every onStartCommand call while playback keeps the service alive.
     private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
@@ -34,6 +36,8 @@ public class PlaybackKeepAliveService extends Service {
     private PowerManager.WakeLock wakeLock;
     private MediaSession mediaSession;
     private boolean playing = true;
+    private long positionMs;
+    private long durationMs;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -156,12 +160,14 @@ public class PlaybackKeepAliveService extends Service {
                 public void onSkipToPrevious() {
                     handleMediaCommand(MainActivity.MEDIA_COMMAND_PREVIOUS);
                 }
+
+                @Override
+                public void onSeekTo(long position) {
+                    handleMediaCommand(MainActivity.MEDIA_COMMAND_SEEK, position);
+                }
             });
-            mediaSession.setMetadata(new MediaMetadata.Builder()
-                    .putString(MediaMetadata.METADATA_KEY_TITLE,
-                            getString(R.string.playback_notification_title))
-                    .build());
         }
+        updateMediaMetadata();
         mediaSession.setPlaybackState(playbackStateForCurrentState());
         mediaSession.setActive(true);
     }
@@ -180,6 +186,9 @@ public class PlaybackKeepAliveService extends Service {
             int command = playing ? MainActivity.MEDIA_COMMAND_PAUSE : MainActivity.MEDIA_COMMAND_PLAY;
             handleMediaCommand(command);
         } else if (ACTION_SYNC_PLAYBACK_STATE.equals(action) && intent != null) {
+            positionMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_POSITION_MS, positionMs));
+            durationMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_DURATION_MS, durationMs));
+            updateMediaMetadata();
             setPlaying(intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing), notify);
         }
     }
@@ -198,9 +207,16 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private void handleMediaCommand(int command) {
+        handleMediaCommand(command, 0L);
+    }
+
+    private void handleMediaCommand(int command, long positionMs) {
         Intent intent = new Intent(MainActivity.ACTION_MEDIA_COMMAND);
         intent.setPackage(getPackageName());
         intent.putExtra(MainActivity.EXTRA_MEDIA_COMMAND, command);
+        if (command == MainActivity.MEDIA_COMMAND_SEEK) {
+            intent.putExtra(MainActivity.EXTRA_MEDIA_POSITION_MS, positionMs);
+        }
         sendBroadcast(intent);
     }
 
@@ -224,11 +240,25 @@ public class PlaybackKeepAliveService extends Service {
                         | PlaybackState.ACTION_PLAY
                         | PlaybackState.ACTION_PAUSE
                         | PlaybackState.ACTION_SKIP_TO_NEXT
-                        | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                        | PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                        | PlaybackState.ACTION_SEEK_TO)
                 .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                        PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                        positionMs,
                         playing ? 1f : 0f)
                 .build();
+    }
+
+    private void updateMediaMetadata() {
+        if (mediaSession == null) {
+            return;
+        }
+        MediaMetadata.Builder metadata = new MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE,
+                        getString(R.string.playback_notification_title));
+        if (durationMs > 0L) {
+            metadata.putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs);
+        }
+        mediaSession.setMetadata(metadata.build());
     }
 
     private void createNotificationChannel() {
