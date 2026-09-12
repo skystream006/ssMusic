@@ -299,6 +299,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        Logger.event(TAG, "App entering foreground, playback active: " + playbackActive);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Logger.debug(TAG, "App resumed and interactive");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Logger.debug(TAG, "App paused and no longer interactive");
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         Logger.debug(TAG, "onSaveInstanceState");
@@ -308,7 +326,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        Logger.event(TAG, "onStop, playback active: " + playbackActive);
+        Logger.event(TAG, "App leaving foreground, playback active: " + playbackActive
+                + ", finishing: " + isFinishing() + ", changing configuration: "
+                + isChangingConfigurations());
         persistPlaybackPosition(lastReportedPositionUrl, lastReportedPositionSeconds);
         capturePlaybackPosition();
         persistLocation(webView.getUrl());
