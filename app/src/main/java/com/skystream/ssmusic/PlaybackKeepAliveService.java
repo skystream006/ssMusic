@@ -35,10 +35,10 @@ public class PlaybackKeepAliveService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        handleAction(intent == null ? null : intent.getAction());
         createNotificationChannel();
         try {
             activateMediaSession();
+            handleAction(intent == null ? null : intent.getAction(), false);
             Notification notification = buildNotification();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification,
@@ -136,13 +136,13 @@ public class PlaybackKeepAliveService extends Service {
                 @Override
                 public void onPlay() {
                     handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
-                    setPlaying(true);
+                    setPlaying(true, true);
                 }
 
                 @Override
                 public void onPause() {
                     handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
-                    setPlaying(false);
+                    setPlaying(false, true);
                 }
 
                 @Override
@@ -160,26 +160,17 @@ public class PlaybackKeepAliveService extends Service {
                             getString(R.string.playback_notification_title))
                     .build());
         }
-        mediaSession.setPlaybackState(new PlaybackState.Builder()
-                .setActions(PlaybackState.ACTION_PLAY_PAUSE
-                        | PlaybackState.ACTION_PLAY
-                        | PlaybackState.ACTION_PAUSE
-                        | PlaybackState.ACTION_SKIP_TO_NEXT
-                        | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
-                .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                        PlaybackState.PLAYBACK_POSITION_UNKNOWN,
-                        playing ? 1f : 0f)
-                .build());
+        mediaSession.setPlaybackState(playbackStateForCurrentState());
         mediaSession.setActive(true);
     }
 
-    private void handleAction(String action) {
+    private void handleAction(String action, boolean notify) {
         if (ACTION_PLAY.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
-            setPlaying(true);
+            setPlaying(true, notify);
         } else if (ACTION_PAUSE.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
-            setPlaying(false);
+            setPlaying(false, notify);
         } else if (ACTION_NEXT.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_NEXT);
         } else if (ACTION_PREVIOUS.equals(action)) {
@@ -187,29 +178,22 @@ public class PlaybackKeepAliveService extends Service {
         } else if (ACTION_TOGGLE_PLAYBACK.equals(action)) {
             int command = playing ? MainActivity.MEDIA_COMMAND_PAUSE : MainActivity.MEDIA_COMMAND_PLAY;
             handleMediaCommand(command);
-            setPlaying(!playing);
+            setPlaying(!playing, notify);
         } else if (action == null) {
-            setPlaying(true);
+            setPlaying(true, notify);
         }
     }
 
-    private void setPlaying(boolean value) {
+    private void setPlaying(boolean value, boolean notify) {
         playing = value;
         if (mediaSession != null) {
-            mediaSession.setPlaybackState(new PlaybackState.Builder()
-                    .setActions(PlaybackState.ACTION_PLAY_PAUSE
-                            | PlaybackState.ACTION_PLAY
-                            | PlaybackState.ACTION_PAUSE
-                            | PlaybackState.ACTION_SKIP_TO_NEXT
-                            | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
-                    .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                            PlaybackState.PLAYBACK_POSITION_UNKNOWN,
-                            playing ? 1f : 0f)
-                    .build());
+            mediaSession.setPlaybackState(playbackStateForCurrentState());
         }
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) {
-            manager.notify(NOTIFICATION_ID, buildNotification());
+        if (notify) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.notify(NOTIFICATION_ID, buildNotification());
+            }
         }
     }
 
@@ -232,6 +216,19 @@ public class PlaybackKeepAliveService extends Service {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
         return flags;
+    }
+
+    private PlaybackState playbackStateForCurrentState() {
+        return new PlaybackState.Builder()
+                .setActions(PlaybackState.ACTION_PLAY_PAUSE
+                        | PlaybackState.ACTION_PLAY
+                        | PlaybackState.ACTION_PAUSE
+                        | PlaybackState.ACTION_SKIP_TO_NEXT
+                        | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                        PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                        playing ? 1f : 0f)
+                .build();
     }
 
     private void createNotificationChannel() {

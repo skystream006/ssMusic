@@ -58,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     static final int MEDIA_COMMAND_PAUSE = 2;
     static final int MEDIA_COMMAND_NEXT = 3;
     static final int MEDIA_COMMAND_PREVIOUS = 4;
+    private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -123,6 +124,8 @@ public class MainActivity extends AppCompatActivity {
                     + "function keepPlaying(event){"
                     + "var node=event&&event.target;"
                     + "if(!node||typeof node.play!=='function'||!isBackgrounded()){return;}"
+                    + "if(window.ssmusicPlayback&&window.ssmusicPlayback.shouldAutoResume"
+                    + "&&!window.ssmusicPlayback.shouldAutoResume()){return;}"
                     + "var p=node.play();"
                     + "if(p&&typeof p.catch==='function'){p.catch(function(){});}"
                     + "setTimeout(report,150);"
@@ -168,6 +171,11 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean playbackActive;
     private boolean usingDefaultUserAgent;
     private boolean playbackBridgeEnabled;
+    private boolean mediaCommandReceiverRegistered;
+    private volatile long suppressAutoResumeUntilMs;
+    private long lastPlaybackSignalAtMs;
+    private String lastPersistedPositionUrl;
+    private float lastPersistedPositionSeconds;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -184,6 +192,8 @@ public class MainActivity extends AppCompatActivity {
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         applyTheme(preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM));
         setContentView(R.layout.activity_main);
+        lastPersistedPositionUrl = preferences.getString(KEY_LAST_POSITION_URL, null);
+        lastPersistedPositionSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
         webView = findViewById(R.id.webview);
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> showPreferences());
@@ -215,14 +225,17 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
-        if (!isFinishing() && SiteScope.isPlaybackUrl(SiteScope.normalizeInAppUrl(webView.getUrl()))) {
+        if (!isFinishing() && isPlaybackLikelyActive()) {
             startPlaybackKeepAliveService();
         }
     }
 
     @Override
     protected void onDestroy() {
-        unregisterReceiver(mediaCommandReceiver);
+        if (mediaCommandReceiverRegistered) {
+            unregisterReceiver(mediaCommandReceiver);
+            mediaCommandReceiverRegistered = false;
+        }
         if (isFinishing()) {
             stopService(new Intent(this, PlaybackKeepAliveService.class));
         }
@@ -462,6 +475,7 @@ public class MainActivity extends AppCompatActivity {
         } else {
             registerReceiver(mediaCommandReceiver, filter);
         }
+        mediaCommandReceiverRegistered = true;
     }
 
     private void loadUrl(String url) {
@@ -523,10 +537,17 @@ public class MainActivity extends AppCompatActivity {
         if (!SiteScope.isPlaybackUrl(normalized) || !Double.isFinite(seconds) || seconds < 0d) {
             return;
         }
+        float value = (float) seconds;
+        if (normalized.equals(lastPersistedPositionUrl)
+                && Math.abs(value - lastPersistedPositionSeconds) < 1f) {
+            return;
+        }
         preferences.edit()
                 .putString(KEY_LAST_POSITION_URL, normalized)
-                .putFloat(KEY_LAST_POSITION_SECONDS, (float) seconds)
+                .putFloat(KEY_LAST_POSITION_SECONDS, value)
                 .apply();
+        lastPersistedPositionUrl = normalized;
+        lastPersistedPositionSeconds = value;
     }
 
     private void restorePlaybackPosition(WebView view, String url) {
@@ -568,6 +589,11 @@ public class MainActivity extends AppCompatActivity {
         if (!playbackBridgeEnabled) {
             return;
         }
+        if (command == MEDIA_COMMAND_PAUSE) {
+            suppressAutoResumeUntilMs = System.currentTimeMillis() + 1500L;
+        } else {
+            suppressAutoResumeUntilMs = 0L;
+        }
         String script;
         if (command == MEDIA_COMMAND_PLAY) {
             script = "(function(){var node=document.querySelector('audio,video');"
@@ -607,6 +633,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         playbackActive = playing;
+        if (playing) {
+            lastPlaybackSignalAtMs = System.currentTimeMillis();
+        }
         runOnUiThread(() -> {
             if (playing) {
                 startPlaybackKeepAliveService();
@@ -632,6 +661,22 @@ public class MainActivity extends AppCompatActivity {
         public void setPosition(String url, double seconds) {
             persistPlaybackPosition(url, seconds);
         }
+
+        @JavascriptInterface
+        public boolean shouldAutoResume() {
+            return System.currentTimeMillis() >= suppressAutoResumeUntilMs;
+        }
+    }
+
+    private boolean isPlaybackLikelyActive() {
+        String normalized = SiteScope.normalizeInAppUrl(webView.getUrl());
+        if (!SiteScope.isPlaybackUrl(normalized)) {
+            return false;
+        }
+        if (playbackActive) {
+            return true;
+        }
+        return System.currentTimeMillis() - lastPlaybackSignalAtMs <= PLAYBACK_SIGNAL_GRACE_MS;
     }
 
     private final class MusicWebViewClient extends WebViewClient {
