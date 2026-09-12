@@ -163,6 +163,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
+        CookieManager.getInstance().flush();
         if (!isFinishing() && playbackActive) {
             startPlaybackKeepAliveService();
         }
@@ -477,6 +478,7 @@ public class MainActivity extends AppCompatActivity {
             super.onPageFinished(view, url);
             injectPageScripts(view);
             settingsButton.setVisibility(View.VISIBLE);
+            CookieManager.getInstance().flush();
         }
 
         private boolean handleUrl(WebView view, String url) {
