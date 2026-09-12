@@ -179,8 +179,6 @@ public class PlaybackKeepAliveService extends Service {
             int command = playing ? MainActivity.MEDIA_COMMAND_PAUSE : MainActivity.MEDIA_COMMAND_PLAY;
             handleMediaCommand(command);
             setPlaying(!playing, notify);
-        } else if (action == null) {
-            setPlaying(true, notify);
         }
     }
 

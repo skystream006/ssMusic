@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -59,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     static final int MEDIA_COMMAND_NEXT = 3;
     static final int MEDIA_COMMAND_PREVIOUS = 4;
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
+    private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -172,8 +174,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean usingDefaultUserAgent;
     private boolean playbackBridgeEnabled;
     private boolean mediaCommandReceiverRegistered;
-    private volatile long suppressAutoResumeUntilMs;
-    private long lastPlaybackSignalAtMs;
+    private volatile long suppressAutoResumeUntilElapsedMs;
+    private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionUrl;
     private float lastPersistedPositionSeconds;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
@@ -537,6 +539,7 @@ public class MainActivity extends AppCompatActivity {
         if (!SiteScope.isPlaybackUrl(normalized) || !Double.isFinite(seconds) || seconds < 0d) {
             return;
         }
+        // Persist only meaningful progress changes to avoid high-frequency disk writes.
         float value = (float) seconds;
         if (normalized.equals(lastPersistedPositionUrl)
                 && Math.abs(value - lastPersistedPositionSeconds) < 1f) {
@@ -556,6 +559,7 @@ public class MainActivity extends AppCompatActivity {
                 || !normalized.equals(preferences.getString(KEY_LAST_POSITION_URL, null))) {
             return;
         }
+        // Restore only for the same playback URL so stale progress is never applied elsewhere.
         float savedSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
         if (savedSeconds <= 0f) {
             return;
@@ -590,9 +594,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         if (command == MEDIA_COMMAND_PAUSE) {
-            suppressAutoResumeUntilMs = System.currentTimeMillis() + 1500L;
+            suppressAutoResumeUntilElapsedMs = SystemClock.elapsedRealtime() + AUTO_RESUME_SUPPRESSION_MS;
         } else {
-            suppressAutoResumeUntilMs = 0L;
+            suppressAutoResumeUntilElapsedMs = 0L;
         }
         String script;
         if (command == MEDIA_COMMAND_PLAY) {
@@ -634,7 +638,7 @@ public class MainActivity extends AppCompatActivity {
         }
         playbackActive = playing;
         if (playing) {
-            lastPlaybackSignalAtMs = System.currentTimeMillis();
+            lastPlaybackSignalAtElapsedMs = SystemClock.elapsedRealtime();
         }
         runOnUiThread(() -> {
             if (playing) {
@@ -664,7 +668,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public boolean shouldAutoResume() {
-            return System.currentTimeMillis() >= suppressAutoResumeUntilMs;
+            return SystemClock.elapsedRealtime() >= suppressAutoResumeUntilElapsedMs;
         }
     }
 
@@ -676,7 +680,7 @@ public class MainActivity extends AppCompatActivity {
         if (playbackActive) {
             return true;
         }
-        return System.currentTimeMillis() - lastPlaybackSignalAtMs <= PLAYBACK_SIGNAL_GRACE_MS;
+        return SystemClock.elapsedRealtime() - lastPlaybackSignalAtElapsedMs <= PLAYBACK_SIGNAL_GRACE_MS;
     }
 
     private final class MusicWebViewClient extends WebViewClient {
