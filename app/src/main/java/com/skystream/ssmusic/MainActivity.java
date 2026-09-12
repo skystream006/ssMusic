@@ -91,6 +91,20 @@ public class MainActivity extends AppCompatActivity {
                     + "prune(window.ytInitialData,0);"
                     + "})()";
 
+    static final String BACKGROUND_PLAYBACK_SCRIPT =
+            "(function(){"
+                    + "if(window.__ssmusicBackgroundPlaybackInstalled){return;}"
+                    + "window.__ssmusicBackgroundPlaybackInstalled=true;"
+                    + "function visible(value){return {get:function(){return value;},configurable:true};}"
+                    + "try{Object.defineProperty(document,'hidden',visible(false));}catch(e){}"
+                    + "try{Object.defineProperty(document,'visibilityState',visible('visible'));}catch(e){}"
+                    + "try{Object.defineProperty(document,'webkitHidden',visible(false));}catch(e){}"
+                    + "try{Object.defineProperty(document,'webkitVisibilityState',visible('visible'));}catch(e){}"
+                    + "function stop(event){event.stopImmediatePropagation();}"
+                    + "document.addEventListener('visibilitychange',stop,true);"
+                    + "document.addEventListener('webkitvisibilitychange',stop,true);"
+                    + "})()";
+
     private WebView webView;
     private ImageButton settingsButton;
     private SharedPreferences preferences;
@@ -113,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null && target == null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(target == null ? Preferences.homeUrl() : target);
+            loadUrl(target == null ? Preferences.homeUrl() : target);
         }
     }
 
@@ -124,12 +138,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        stopService(new Intent(this, PlaybackKeepAliveService.class));
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (!isFinishing()) {
+            startPlaybackKeepAliveService();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (isFinishing()) {
+            stopService(new Intent(this, PlaybackKeepAliveService.class));
+        }
+        super.onDestroy();
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         String target = urlFromIntent(intent);
         if (target != null) {
-            webView.loadUrl(target);
+            loadUrl(target);
         }
     }
 
@@ -211,14 +247,14 @@ public class MainActivity extends AppCompatActivity {
         siteModeGroup.setOnCheckedChangeListener((group, checkedId) -> {
             boolean desktopMode = checkedId == R.id.site_mode_desktop;
             preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
-            webView.getSettings().setUserAgentString(Preferences.userAgent(desktopMode));
+            applyUserAgentForUrl(webView.getUrl());
             webView.reload();
         });
 
         content.findViewById(R.id.back_button).setOnClickListener(v -> goHistory(false));
         content.findViewById(R.id.forward_button).setOnClickListener(v -> goHistory(true));
         content.findViewById(R.id.refresh_button).setOnClickListener(v -> webView.reload());
-        content.findViewById(R.id.home_button).setOnClickListener(v -> webView.loadUrl(Preferences.homeUrl()));
+        content.findViewById(R.id.home_button).setOnClickListener(v -> loadUrl(Preferences.homeUrl()));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.preferences)
@@ -331,8 +367,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void injectAdBlockingScripts(WebView view) {
+        view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
+    }
+
+    private void loadUrl(String url) {
+        applyUserAgentForUrl(url);
+        webView.loadUrl(url);
+    }
+
+    private void applyUserAgentForUrl(String url) {
+        WebSettings settings = webView.getSettings();
+        if (SiteScope.isGoogleAccountUrl(url)) {
+            settings.setUserAgentString(null);
+        } else {
+            settings.setUserAgentString(Preferences.userAgent(isDesktopMode()));
+        }
+    }
+
+    private void startPlaybackKeepAliveService() {
+        Intent serviceIntent = new Intent(this, PlaybackKeepAliveService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 
     private final class MusicWebViewClient extends WebViewClient {
@@ -369,9 +429,10 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
             if (!normalized.equals(url)) {
-                view.loadUrl(normalized);
+                loadUrl(normalized);
                 return true;
             }
+            applyUserAgentForUrl(normalized);
             return false;
         }
 

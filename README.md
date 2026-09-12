@@ -6,7 +6,7 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - system, light, or dark app theme
 - back, forward, refresh, and home navigation
 
-The app requests the browser permissions YouTube Music may need, including camera, microphone, and Android notification permission.
+The app requests the browser permissions YouTube Music may need, including camera, microphone, notification, and foreground playback permissions. When you send the app to the background, it keeps a low-priority playback notification active so music can continue playing.
 
 ## Build
 

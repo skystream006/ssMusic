@@ -12,13 +12,23 @@ public final class SiteScope {
 
     private static final List<String> ALLOWED_HOSTS = Arrays.asList(
             "music.youtube.com",
+            "youtube.com",
             "ytimg.com",
             "ggpht.com",
             "googlevideo.com",
             "accounts.google.com",
+            "myaccount.google.com",
+            "ogs.google.com",
             "gstatic.com",
             "googleusercontent.com",
             "apis.google.com"
+    );
+
+    private static final List<String> GOOGLE_ACCOUNT_HOSTS = Arrays.asList(
+            "accounts.google.com",
+            "myaccount.google.com",
+            "ogs.google.com",
+            "accounts.youtube.com"
     );
 
     private SiteScope() {
@@ -26,6 +36,22 @@ public final class SiteScope {
 
     public static boolean isInAppUrl(String url) {
         return normalizeInAppUrl(url) != null;
+    }
+
+    public static boolean isGoogleAccountUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        String host = Urls.hostOf(url.toLowerCase(Locale.US));
+        if (host == null) {
+            return false;
+        }
+        for (String allowed : GOOGLE_ACCOUNT_HOSTS) {
+            if (host.equals(allowed) || host.endsWith("." + allowed)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static String normalizeInAppUrl(String url) {

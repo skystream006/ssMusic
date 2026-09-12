@@ -19,7 +19,19 @@ public class SiteScopeTest {
     @Test
     public void allowsGoogleSignInDependencies() {
         assertTrue(SiteScope.isInAppUrl("https://accounts.google.com/signin"));
+        assertTrue(SiteScope.isInAppUrl("https://accounts.youtube.com/accounts/SetSID"));
+        assertTrue(SiteScope.isInAppUrl("https://myaccount.google.com/"));
+        assertTrue(SiteScope.isInAppUrl("https://ogs.google.com/widget/app"));
+        assertTrue(SiteScope.isInAppUrl("https://www.youtube.com/signin"));
         assertTrue(SiteScope.isInAppUrl("https://lh3.googleusercontent.com/avatar"));
+    }
+
+    @Test
+    public void identifiesGoogleAccountUrls() {
+        assertTrue(SiteScope.isGoogleAccountUrl("https://accounts.google.com/signin"));
+        assertTrue(SiteScope.isGoogleAccountUrl("https://accounts.youtube.com/accounts/SetSID"));
+        assertFalse(SiteScope.isGoogleAccountUrl("https://music.youtube.com/"));
+        assertFalse(SiteScope.isGoogleAccountUrl("https://www.youtube.com/signin"));
     }
 
     @Test

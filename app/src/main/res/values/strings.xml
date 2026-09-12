@@ -16,4 +16,7 @@
     <string name="forward">Forward</string>
     <string name="refresh">Refresh</string>
     <string name="home">Home</string>
+    <string name="playback_notification_channel">Playback</string>
+    <string name="playback_notification_title">ssMusic is playing</string>
+    <string name="playback_notification_text">Tap to return to YouTube Music.</string>
 </resources>
