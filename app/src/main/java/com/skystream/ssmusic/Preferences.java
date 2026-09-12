@@ -30,4 +30,9 @@ public final class Preferences {
     public static String homeUrl() {
         return HOME_URL;
     }
+
+    public static String restoreUrl(String savedUrl) {
+        String normalized = SiteScope.normalizeInAppUrl(savedUrl);
+        return SiteScope.isPlaybackUrl(normalized) ? normalized : HOME_URL;
+    }
 }

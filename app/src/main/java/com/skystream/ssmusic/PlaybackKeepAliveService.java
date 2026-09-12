@@ -8,6 +8,9 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -22,11 +25,13 @@ public class PlaybackKeepAliveService extends Service {
     private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
 
     private PowerManager.WakeLock wakeLock;
+    private MediaSession mediaSession;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         createNotificationChannel();
         try {
+            activateMediaSession();
             Notification notification = buildNotification();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification,
@@ -45,6 +50,10 @@ public class PlaybackKeepAliveService extends Service {
     @Override
     public void onDestroy() {
         releaseWakeLock();
+        if (mediaSession != null) {
+            mediaSession.release();
+            mediaSession = null;
+        }
         super.onDestroy();
     }
 
@@ -91,8 +100,26 @@ public class PlaybackKeepAliveService extends Service {
                 .setContentTitle(getString(R.string.playback_notification_title))
                 .setContentText(getString(R.string.playback_notification_text))
                 .setContentIntent(pendingIntent)
+                .setCategory(Notification.CATEGORY_TRANSPORT)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setStyle(new Notification.MediaStyle()
+                        .setMediaSession(mediaSession.getSessionToken()))
                 .setOngoing(true)
                 .build();
+    }
+
+    private void activateMediaSession() {
+        if (mediaSession == null) {
+            mediaSession = new MediaSession(this, "ssMusicPlayback");
+            mediaSession.setMetadata(new MediaMetadata.Builder()
+                    .putString(MediaMetadata.METADATA_KEY_TITLE,
+                            getString(R.string.playback_notification_title))
+                    .build());
+        }
+        mediaSession.setPlaybackState(new PlaybackState.Builder()
+                .setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
+                .build());
+        mediaSession.setActive(true);
     }
 
     private void createNotificationChannel() {
