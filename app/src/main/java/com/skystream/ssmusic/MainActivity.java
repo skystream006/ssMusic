@@ -70,14 +70,22 @@ public class MainActivity extends AppCompatActivity {
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    // Pick likely main media in priority order: paused with progress, paused fallback, then any non-ended node.
     private static final String PICK_MEDIA_NODE_HELPER =
-            "function pickMediaNode(nodes){"
+            ";function pickMediaNode(nodes){"
                     + "for(var i=0;i<nodes.length;i++){"
                     + "if(!nodes[i].ended&&nodes[i].paused&&((nodes[i].currentTime||0)>0)){return nodes[i];}"
                     + "}"
                     + "for(var j=0;j<nodes.length;j++){if(!nodes[j].ended&&nodes[j].paused){return nodes[j];}}"
                     + "for(var k=0;k<nodes.length;k++){if(!nodes[k].ended){return nodes[k];}}"
                     + "return nodes.length?nodes[0]:null;"
+                    + "}";
+    private static final String PAUSE_ACTIVE_MEDIA_HELPER =
+            ";function pauseActiveMedia(nodes){"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "var node=nodes[i];"
+                    + "if(!node.ended&&!node.paused&&typeof node.pause==='function'){node.pause();}"
+                    + "}"
                     + "}";
 
     static final String AD_HIDING_SCRIPT =
@@ -168,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!node.paused&&!node.ended&&node.readyState>2){"
                     + "active=node;playing=true;break;"
                     + "}"
-                    + "if(!tentative&&!node.paused&&!node.ended&&node.readyState>0){"
+                    + "if(!tentative&&!node.paused&&!node.ended&&node.readyState>=2){"
                     + "tentative=node;"
                     + "}"
                     + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
@@ -728,10 +736,8 @@ public class MainActivity extends AppCompatActivity {
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else if (command == MEDIA_COMMAND_PAUSE || command == MEDIA_COMMAND_STOP) {
             script = "(function(){var nodes=document.querySelectorAll('audio,video');"
-                    + "for(var i=0;i<nodes.length;i++){"
-                    + "var node=nodes[i];"
-                    + "if(!node.ended&&!node.paused&&typeof node.pause==='function'){node.pause();}"
-                    + "}"
+                    + PAUSE_ACTIVE_MEDIA_HELPER
+                    + "pauseActiveMedia(nodes);"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else if (command == MEDIA_COMMAND_NEXT) {
             script = "(function(){"
@@ -755,11 +761,10 @@ public class MainActivity extends AppCompatActivity {
         } else {
             script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
                     + PICK_MEDIA_NODE_HELPER
+                    + PAUSE_ACTIVE_MEDIA_HELPER
                     + "for(var i=0;i<nodes.length;i++){if(!nodes[i].ended&&!nodes[i].paused){node=nodes[i];break;}}"
-                    + "if(node&&typeof node.pause==='function'){"
-                    + "for(var j=0;j<nodes.length;j++){"
-                    + "if(!nodes[j].ended&&!nodes[j].paused&&typeof nodes[j].pause==='function'){nodes[j].pause();}"
-                    + "}"
+                    + "if(node){"
+                    + "pauseActiveMedia(nodes);"
                     + "}else{"
                     + "node=pickMediaNode(nodes);"
                     + "if(node&&typeof node.play==='function'){"
