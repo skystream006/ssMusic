@@ -17,6 +17,7 @@ import android.os.PowerManager;
 
 public class PlaybackKeepAliveService extends Service {
 
+    private static final String TAG = "PlaybackService";
     private static final String CHANNEL_ID = "playback";
     private static final int NOTIFICATION_ID = 1;
     private static final String WAKE_LOCK_TAG = "ssmusic:playback";
@@ -52,6 +53,8 @@ public class PlaybackKeepAliveService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Logger.init(this);
+        Logger.event(TAG, "onStartCommand, action: " + (intent == null ? null : intent.getAction()));
         createNotificationChannel();
         try {
             activateMediaSession();
@@ -76,6 +79,7 @@ public class PlaybackKeepAliveService extends Service {
                 stopPlayback();
             }
         } catch (RuntimeException e) {
+            Logger.error(TAG, "Unable to start playback notification", e);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -83,6 +87,7 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private void stopPlayback() {
+        Logger.event(TAG, "Stopping playback notification");
         releaseWakeLock();
         if (mediaSession != null) {
             mediaSession.setActive(false);
@@ -97,6 +102,7 @@ public class PlaybackKeepAliveService extends Service {
 
     @Override
     public void onDestroy() {
+        Logger.event(TAG, "onDestroy");
         // Let the activity know the notification is gone so it stops syncing state to a dead service.
         handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED, 0L, startToken);
         releaseWakeLock();
@@ -246,6 +252,9 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private void setPlaying(boolean value, boolean notify) {
+        if (playing != value) {
+            Logger.event(TAG, "Notification playing state changed to " + value);
+        }
         playing = value;
         if (mediaSession != null) {
             mediaSession.setPlaybackState(playbackStateForCurrentState());
@@ -267,6 +276,7 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private void handleMediaCommand(int command, long positionMs, long token) {
+        Logger.event(TAG, "Sending media command " + command + ", position: " + positionMs);
         Intent intent = new Intent(MainActivity.ACTION_MEDIA_COMMAND);
         intent.setPackage(getPackageName());
         intent.putExtra(MainActivity.EXTRA_MEDIA_COMMAND, command);

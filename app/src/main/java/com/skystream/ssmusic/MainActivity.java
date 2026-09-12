@@ -2,11 +2,13 @@ package com.skystream.ssmusic;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -19,6 +21,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -26,15 +29,20 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ImageButton;
 import android.widget.RadioGroup;
+import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.annotation.RequiresApi;
+import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -45,12 +53,14 @@ import java.util.regex.Pattern;
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "MainActivity";
     private static final String PREFS_NAME = "ssmusic_prefs";
     private static final String KEY_THEME = "theme";
     private static final String KEY_DESKTOP_MODE = "desktop_mode";
     private static final String KEY_LAST_URL = "last_url";
     private static final String KEY_LAST_POSITION_URL = "last_position_url";
     private static final String KEY_LAST_POSITION_SECONDS = "last_position_seconds";
+    private static final String LOG_FILE_PROVIDER_SUFFIX = ".logs";
     private static final int REQUEST_APP_PERMISSIONS = 1001;
     private static final int REQUEST_WEB_PERMISSIONS = 1002;
     static final String ACTION_MEDIA_COMMAND = "com.skystream.ssmusic.MEDIA_COMMAND";
@@ -241,6 +251,8 @@ public class MainActivity extends AppCompatActivity {
             if (!ACTION_MEDIA_COMMAND.equals(intent.getAction())) {
                 return;
             }
+            Logger.event(TAG, "Media command broadcast received: "
+                    + intent.getIntExtra(EXTRA_MEDIA_COMMAND, MEDIA_COMMAND_TOGGLE));
             applyMediaCommand(intent.getIntExtra(EXTRA_MEDIA_COMMAND, MEDIA_COMMAND_TOGGLE),
                     intent.getLongExtra(EXTRA_MEDIA_POSITION_MS, 0L),
                     intent.getLongExtra(EXTRA_MEDIA_START_TOKEN, 0L));
@@ -250,6 +262,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Logger.init(this);
+        Logger.event(TAG, "onCreate, restored state: " + (savedInstanceState != null));
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         applyTheme(preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM));
         setContentView(R.layout.activity_main);
@@ -260,7 +274,10 @@ public class MainActivity extends AppCompatActivity {
         lastReportedPositionSeconds = lastPersistedPositionSeconds;
         webView = findViewById(R.id.webview);
         settingsButton = findViewById(R.id.settings_button);
-        settingsButton.setOnClickListener(v -> showPreferences());
+        settingsButton.setOnClickListener(v -> {
+            Logger.event(TAG, "Settings panel opened");
+            showPreferences();
+        });
         configureWebView();
         registerMediaCommandReceiver();
         settingsButton.setVisibility(View.VISIBLE);
@@ -281,12 +298,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        Logger.debug(TAG, "onSaveInstanceState");
         webView.saveState(outState);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
+        Logger.event(TAG, "onStop, playback active: " + playbackActive);
         persistPlaybackPosition(lastReportedPositionUrl, lastReportedPositionSeconds);
         capturePlaybackPosition();
         persistLocation(webView.getUrl());
@@ -298,6 +317,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        Logger.event(TAG, "onDestroy, finishing: " + isFinishing());
         if (mediaCommandReceiverRegistered) {
             unregisterReceiver(mediaCommandReceiver);
             mediaCommandReceiverRegistered = false;
@@ -313,6 +333,7 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         String target = urlFromIntent(intent);
+        Logger.event(TAG, "onNewIntent, target: " + target);
         if (target != null) {
             loadUrl(target);
         }
@@ -321,6 +342,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         int steps = historySteps(false);
+        Logger.event(TAG, "Back pressed, history steps: " + steps);
         if (steps != 0) {
             webView.goBackOrForward(steps);
         } else {
@@ -331,6 +353,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        Logger.event(TAG, "Permission result for request " + requestCode + ": "
+                + java.util.Arrays.toString(permissions)
+                + " -> " + java.util.Arrays.toString(grantResults));
         if (requestCode == REQUEST_WEB_PERMISSIONS && pendingPermissionRequest != null) {
             PermissionRequest request = pendingPermissionRequest;
             pendingPermissionRequest = null;
@@ -340,6 +365,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private void configureWebView() {
+        Logger.event(TAG, "Configuring WebView, desktop mode: " + isDesktopMode());
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -396,6 +422,7 @@ public class MainActivity extends AppCompatActivity {
             int value = checkedId == R.id.theme_light ? Preferences.THEME_LIGHT
                     : checkedId == R.id.theme_dark ? Preferences.THEME_DARK
                     : Preferences.THEME_SYSTEM;
+            Logger.event(TAG, "Theme preference changed to " + value);
             preferences.edit().putInt(KEY_THEME, value).apply();
             applyTheme(value);
         });
@@ -404,14 +431,25 @@ public class MainActivity extends AppCompatActivity {
         siteModeGroup.check(isDesktopMode() ? R.id.site_mode_desktop : R.id.site_mode_mobile);
         siteModeGroup.setOnCheckedChangeListener((group, checkedId) -> {
             boolean desktopMode = checkedId == R.id.site_mode_desktop;
+            Logger.event(TAG, "Site mode preference changed, desktop: " + desktopMode);
             preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
             applyUserAgentForUrl(webView.getUrl());
             webView.reload();
         });
 
+        Switch loggingSwitch = content.findViewById(R.id.logging_switch);
+        loggingSwitch.setChecked(Logger.isEnabled());
+        loggingSwitch.setOnCheckedChangeListener(
+                (button, checked) -> Logger.setEnabled(MainActivity.this, checked));
+        content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
+        content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
+
         content.findViewById(R.id.back_button).setOnClickListener(v -> goHistory(false));
         content.findViewById(R.id.forward_button).setOnClickListener(v -> goHistory(true));
-        content.findViewById(R.id.refresh_button).setOnClickListener(v -> webView.reload());
+        content.findViewById(R.id.refresh_button).setOnClickListener(v -> {
+            Logger.event(TAG, "Reload requested from settings");
+            webView.reload();
+        });
         content.findViewById(R.id.home_button).setOnClickListener(v -> loadUrl(Preferences.homeUrl()));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
@@ -429,7 +467,36 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
+    private void shareLog() {
+        File logFile = Logger.logFile(this);
+        if (logFile == null || !logFile.isFile() || logFile.length() == 0L) {
+            Toast.makeText(this, R.string.log_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(
+                    this, getPackageName() + LOG_FILE_PROVIDER_SUFFIX, logFile);
+            Intent share = new Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.log_share_title))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Logger.event(TAG, "Sharing log file, bytes: " + logFile.length());
+            startActivity(Intent.createChooser(share, getString(R.string.log_share_title)));
+        } catch (IllegalArgumentException | ActivityNotFoundException e) {
+            Logger.error(TAG, "Unable to share log file", e);
+            Toast.makeText(this, R.string.log_share_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void clearLog() {
+        Logger.clear(this);
+        Logger.event(TAG, "Log cleared by user");
+        Toast.makeText(this, R.string.log_cleared, Toast.LENGTH_SHORT).show();
+    }
+
     private void applyTheme(int theme) {
+        Logger.event(TAG, "Applying theme " + theme);
         int mode = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
         if (theme == Preferences.THEME_LIGHT) {
             mode = AppCompatDelegate.MODE_NIGHT_NO;
@@ -441,6 +508,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void goHistory(boolean forward) {
         int steps = historySteps(forward);
+        Logger.event(TAG, (forward ? "Forward" : "Back") + " navigation, steps: " + steps);
         if (steps != 0) {
             webView.goBackOrForward(steps);
         }
@@ -467,6 +535,7 @@ public class MainActivity extends AppCompatActivity {
             addMissingPermission(missing, Manifest.permission.POST_NOTIFICATIONS);
         }
         if (!missing.isEmpty()) {
+            Logger.event(TAG, "Requesting app permissions: " + missing);
             requestPermissions(missing.toArray(new String[0]), REQUEST_APP_PERMISSIONS);
         }
     }
@@ -480,6 +549,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void grantWebPermissionsIfAllowed(PermissionRequest request, boolean mayRequestMissing) {
         if (!isTrustedPermissionOrigin(request.getOrigin().toString())) {
+            Logger.warn(TAG, "Denied web permission request from untrusted origin: "
+                    + request.getOrigin(), null);
             request.deny();
             return;
         }
@@ -501,6 +572,8 @@ public class MainActivity extends AppCompatActivity {
         } else if (requested.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
             missing.add(Manifest.permission.CAMERA);
         }
+        Logger.event(TAG, "Web permission request from " + request.getOrigin()
+                + ", granting: " + grant + ", missing: " + missing);
         if (mayRequestMissing && !missing.isEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             pendingPermissionRequest = request;
             requestPermissions(missing.toArray(new String[0]), REQUEST_WEB_PERMISSIONS);
@@ -527,6 +600,7 @@ public class MainActivity extends AppCompatActivity {
         if (!SiteScope.isPlaybackUrl(view.getUrl())) {
             return;
         }
+        Logger.debug(TAG, "Injecting page scripts");
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
@@ -545,6 +619,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadUrl(String url) {
+        Logger.event(TAG, "Loading url: " + url);
         prepareForUrl(url);
         webView.loadUrl(url);
     }
@@ -571,6 +646,7 @@ public class MainActivity extends AppCompatActivity {
         if (enabled == playbackBridgeEnabled) {
             return;
         }
+        Logger.event(TAG, "Playback bridge enabled: " + enabled);
         if (enabled) {
             webView.addJavascriptInterface(new PlaybackBridge(), "ssmusicPlayback");
         } else {
@@ -604,7 +680,9 @@ public class MainActivity extends AppCompatActivity {
                 startService(serviceIntent);
             }
             keepAliveServiceRunning = true;
+            Logger.event(TAG, "Playback keep-alive service started, playing: " + playingState);
         } catch (RuntimeException e) {
+            Logger.error(TAG, "Unable to start playback keep-alive service", e);
             // A background start can be rejected; only tear down when no notification exists yet,
             // so an already running notification is never dropped by a failed state sync.
             if (!keepAliveServiceRunning) {
@@ -614,6 +692,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopPlaybackKeepAliveService() {
+        Logger.event(TAG, "Stopping playback keep-alive service");
         keepAliveServiceRunning = false;
         lastServicePositionSeconds = Float.NaN;
         stopService(new Intent(this, PlaybackKeepAliveService.class));
@@ -655,6 +734,7 @@ public class MainActivity extends AppCompatActivity {
                 .apply();
         lastPersistedPositionIdentityUrl = identityUrl;
         lastPersistedPositionSeconds = value;
+        Logger.debug(TAG, "Persisted playback position " + value + "s for " + identityUrl);
     }
 
     private void capturePlaybackPosition() {
@@ -676,6 +756,7 @@ public class MainActivity extends AppCompatActivity {
         if (savedSeconds <= 0f) {
             return;
         }
+        Logger.event(TAG, "Restoring playback position " + savedSeconds + "s");
         String target = String.format(Locale.US, "%.3f", savedSeconds);
         String script = "(function(){"
                 + "var target=" + target + ";"
@@ -702,6 +783,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyMediaCommand(int command, long positionMs, long startToken) {
+        Logger.event(TAG, "Applying media command " + command + ", position: " + positionMs);
         if (command == MEDIA_COMMAND_SERVICE_STOPPED) {
             // Ignore a stale notice from an older service instance that a newer start replaced.
             if (startToken >= keepAliveStartToken) {
@@ -787,6 +869,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         playbackActive = playing;
+        Logger.event(TAG, "Playback state changed, playing: " + playing);
         runOnUiThread(() -> {
             if (playing) {
                 startPlaybackKeepAliveService(Boolean.TRUE);
@@ -801,16 +884,19 @@ public class MainActivity extends AppCompatActivity {
     private final class PlaybackBridge {
         @JavascriptInterface
         public void setPlaying(boolean playing) {
+            Logger.debug(TAG, "Bridge playing state: " + playing);
             updatePlaybackService(playing);
         }
 
         @JavascriptInterface
         public void setLocation(String url) {
+            Logger.debug(TAG, "Bridge location update: " + url);
             persistLocation(url);
         }
 
         @JavascriptInterface
         public void setPosition(String url, double seconds, double duration) {
+            Logger.debug(TAG, "Bridge position update: " + seconds + "s of " + duration + "s");
             runOnUiThread(() -> {
                 persistPlaybackPosition(url, seconds);
                 String normalized = SiteScope.normalizeInAppUrl(url);
@@ -843,6 +929,7 @@ public class MainActivity extends AppCompatActivity {
                 if (sanitizedTitle.equals(currentTrackTitle) && sanitizedArtist.equals(currentTrackArtist)) {
                     return;
                 }
+                Logger.event(TAG, "Track metadata: " + sanitizedTitle + " - " + sanitizedArtist);
                 currentTrackTitle = sanitizedTitle;
                 currentTrackArtist = sanitizedArtist;
                 if (keepAliveServiceRunning) {
@@ -902,12 +989,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
+            Logger.event(TAG, "Page started: " + url);
             updatePlaybackService(false);
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            Logger.event(TAG, "Page finished: " + url);
             injectPageScripts(view);
             restorePlaybackPosition(view, url);
             persistLocation(url);
@@ -915,9 +1004,28 @@ public class MainActivity extends AppCompatActivity {
             CookieManager.getInstance().flush();
         }
 
+        @RequiresApi(Build.VERSION_CODES.M)
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request,
+                WebResourceError error) {
+            super.onReceivedError(view, request, error);
+            Logger.warn(TAG, "Resource error " + error.getErrorCode() + " for "
+                    + request.getUrl() + ": " + error.getDescription(), null);
+        }
+
+        @RequiresApi(Build.VERSION_CODES.M)
+        @Override
+        public void onReceivedHttpError(WebView view, WebResourceRequest request,
+                WebResourceResponse errorResponse) {
+            super.onReceivedHttpError(view, request, errorResponse);
+            Logger.warn(TAG, "HTTP error " + errorResponse.getStatusCode() + " for "
+                    + request.getUrl(), null);
+        }
+
         private boolean handleUrl(WebView view, String url) {
             String normalized = SiteScope.normalizeInAppUrl(url);
             if (normalized == null) {
+                Logger.warn(TAG, "Blocked out-of-scope navigation: " + url, null);
                 return true;
             }
             boolean needsReload = !normalized.equals(url)
@@ -934,6 +1042,7 @@ public class MainActivity extends AppCompatActivity {
             if (!AdBlocker.isAd(url)) {
                 return null;
             }
+            Logger.debug(TAG, "Blocked ad request: " + url);
             return new WebResourceResponse("text/plain", "utf-8",
                     new ByteArrayInputStream(new byte[0]));
         }

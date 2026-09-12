@@ -11,6 +11,15 @@
     <string name="site_mode">Site mode</string>
     <string name="site_mode_mobile">Mobile site</string>
     <string name="site_mode_desktop">Desktop site</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="enable_logging">Enable logging</string>
+    <string name="enable_logging_summary">Record app activity and stack traces to a log file for debugging.</string>
+    <string name="share_log">Share log</string>
+    <string name="clear_log">Clear log</string>
+    <string name="log_empty">No log entries recorded yet.</string>
+    <string name="log_cleared">Log cleared.</string>
+    <string name="log_share_failed">Unable to share the log file.</string>
+    <string name="log_share_title">ssMusic log</string>
     <string name="navigation">Navigation</string>
     <string name="back">Back</string>
     <string name="forward">Forward</string>
