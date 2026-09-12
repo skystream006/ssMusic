@@ -5,15 +5,23 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 public class PlaybackKeepAliveService extends Service {
 
     private static final String CHANNEL_ID = "playback";
     private static final int NOTIFICATION_ID = 1;
+    private static final String WAKE_LOCK_TAG = "ssmusic:playback";
+    // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
+    // renewed on every onStartCommand call while playback keeps the service alive.
+    private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
+
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -26,6 +34,7 @@ public class PlaybackKeepAliveService extends Service {
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
+            acquireWakeLock();
         } catch (RuntimeException e) {
             stopSelf();
             return START_NOT_STICKY;
@@ -34,8 +43,35 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     @Override
+    public void onDestroy() {
+        releaseWakeLock();
+        super.onDestroy();
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private void acquireWakeLock() {
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (powerManager == null) {
+            return;
+        }
+        if (wakeLock == null) {
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG);
+            wakeLock.setReferenceCounted(false);
+        }
+        // acquire(timeout) renews the timeout even if already held, so repeated
+        // onStartCommand calls keep the lock alive for as long as playback continues.
+        wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
+    }
+
+    private void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+        wakeLock = null;
     }
 
     private Notification buildNotification() {
