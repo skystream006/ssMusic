@@ -418,7 +418,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void prepareForUrl(String url) {
-        playbackActive = false;
+        updatePlaybackService(false);
         setPlaybackBridgeEnabled(SiteScope.isPlaybackUrl(url));
         applyUserAgentForUrl(url);
     }
@@ -466,18 +466,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private synchronized void updatePlaybackService(boolean playing) {
+        if (playbackActive == playing) {
+            return;
+        }
+        playbackActive = playing;
+        runOnUiThread(() -> {
+            if (playing) {
+                startPlaybackKeepAliveService();
+            } else {
+                stopService(new Intent(MainActivity.this,
+                        PlaybackKeepAliveService.class));
+            }
+        });
+    }
+
     private final class PlaybackBridge {
         @JavascriptInterface
         public void setPlaying(boolean playing) {
-            playbackActive = playing;
-            runOnUiThread(() -> {
-                if (playing) {
-                    startPlaybackKeepAliveService();
-                } else {
-                    stopService(new Intent(MainActivity.this,
-                            PlaybackKeepAliveService.class));
-                }
-            });
+            updatePlaybackService(playing);
         }
 
         @JavascriptInterface
@@ -510,7 +517,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
-            playbackActive = false;
+            updatePlaybackService(false);
         }
 
         @Override
