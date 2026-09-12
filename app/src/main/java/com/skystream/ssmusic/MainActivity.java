@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
@@ -32,7 +33,6 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
@@ -91,10 +91,41 @@ public class MainActivity extends AppCompatActivity {
                     + "prune(window.ytInitialData,0);"
                     + "})()";
 
+    static final String BACKGROUND_PLAYBACK_SCRIPT =
+            "(function(){"
+                    + "if(window.__ssmusicBackgroundPlaybackInstalled){return;}"
+                    + "window.__ssmusicBackgroundPlaybackInstalled=true;"
+                    + "function visible(value){return {get:function(){return value;},configurable:true};}"
+                    + "try{Object.defineProperty(document,'hidden',visible(false));}catch(e){}"
+                    + "try{Object.defineProperty(document,'visibilityState',visible('visible'));}catch(e){}"
+                    + "try{Object.defineProperty(document,'webkitHidden',visible(false));}catch(e){}"
+                    + "try{Object.defineProperty(document,'webkitVisibilityState',visible('visible'));}catch(e){}"
+                    + "function stop(event){event.stopImmediatePropagation();}"
+                    + "document.addEventListener('visibilitychange',stop,true);"
+                    + "document.addEventListener('webkitvisibilitychange',stop,true);"
+                    + "function report(){"
+                    + "var nodes=document.querySelectorAll('audio,video');"
+                    + "var playing=false;"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "var node=nodes[i];"
+                    + "if(!node.paused&&!node.ended&&node.readyState>2){playing=true;break;}"
+                    + "}"
+                    + "if(window.ssmusicPlayback){window.ssmusicPlayback.setPlaying(playing);}"
+                    + "}"
+                    + "document.addEventListener('play',report,true);"
+                    + "document.addEventListener('pause',report,true);"
+                    + "document.addEventListener('ended',report,true);"
+                    + "setInterval(report,5000);"
+                    + "report();"
+                    + "})()";
+
     private WebView webView;
     private ImageButton settingsButton;
     private SharedPreferences preferences;
     private PermissionRequest pendingPermissionRequest;
+    private volatile boolean playbackActive;
+    private boolean usingDefaultUserAgent;
+    private boolean playbackBridgeEnabled;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null && target == null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(target == null ? Preferences.homeUrl() : target);
+            loadUrl(target == null ? Preferences.homeUrl() : target);
         }
     }
 
@@ -124,12 +155,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        stopService(new Intent(this, PlaybackKeepAliveService.class));
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (!isFinishing() && playbackActive) {
+            startPlaybackKeepAliveService();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (isFinishing()) {
+            stopService(new Intent(this, PlaybackKeepAliveService.class));
+        }
+        super.onDestroy();
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         String target = urlFromIntent(intent);
         if (target != null) {
-            webView.loadUrl(target);
+            loadUrl(target);
         }
     }
 
@@ -211,14 +264,14 @@ public class MainActivity extends AppCompatActivity {
         siteModeGroup.setOnCheckedChangeListener((group, checkedId) -> {
             boolean desktopMode = checkedId == R.id.site_mode_desktop;
             preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
-            webView.getSettings().setUserAgentString(Preferences.userAgent(desktopMode));
+            applyUserAgentForUrl(webView.getUrl());
             webView.reload();
         });
 
         content.findViewById(R.id.back_button).setOnClickListener(v -> goHistory(false));
         content.findViewById(R.id.forward_button).setOnClickListener(v -> goHistory(true));
         content.findViewById(R.id.refresh_button).setOnClickListener(v -> webView.reload());
-        content.findViewById(R.id.home_button).setOnClickListener(v -> webView.loadUrl(Preferences.homeUrl()));
+        content.findViewById(R.id.home_button).setOnClickListener(v -> loadUrl(Preferences.homeUrl()));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.preferences)
@@ -326,13 +379,70 @@ public class MainActivity extends AppCompatActivity {
         if (origin == null) {
             return false;
         }
-        String host = Urls.hostOf(origin.toLowerCase(Locale.US));
-        return "music.youtube.com".equals(host) || "accounts.google.com".equals(host);
+        return SiteScope.isPlaybackUrl(origin) || SiteScope.isGoogleAccountUrl(origin);
     }
 
-    private void injectAdBlockingScripts(WebView view) {
+    private void injectPageScripts(WebView view) {
+        if (!SiteScope.isPlaybackUrl(view.getUrl())) {
+            return;
+        }
+        view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
+    }
+
+    private void loadUrl(String url) {
+        prepareForUrl(url);
+        webView.loadUrl(url);
+    }
+
+    private void prepareForUrl(String url) {
+        playbackActive = false;
+        setPlaybackBridgeEnabled(SiteScope.isPlaybackUrl(url));
+        applyUserAgentForUrl(url);
+    }
+
+    private void applyUserAgentForUrl(String url) {
+        WebSettings settings = webView.getSettings();
+        boolean shouldUseDefault = SiteScope.isGoogleAccountUrl(url);
+        if (shouldUseDefault) {
+            settings.setUserAgentString(null);
+        } else {
+            settings.setUserAgentString(Preferences.userAgent(isDesktopMode()));
+        }
+        usingDefaultUserAgent = shouldUseDefault;
+    }
+
+    private void setPlaybackBridgeEnabled(boolean enabled) {
+        if (enabled == playbackBridgeEnabled) {
+            return;
+        }
+        if (enabled) {
+            webView.addJavascriptInterface(new PlaybackBridge(), "ssmusicPlayback");
+        } else {
+            webView.removeJavascriptInterface("ssmusicPlayback");
+        }
+        playbackBridgeEnabled = enabled;
+    }
+
+    private void startPlaybackKeepAliveService() {
+        Intent serviceIntent = new Intent(this, PlaybackKeepAliveService.class);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (RuntimeException e) {
+            stopService(serviceIntent);
+        }
+    }
+
+    private final class PlaybackBridge {
+        @JavascriptInterface
+        public void setPlaying(boolean playing) {
+            playbackActive = playing;
+        }
     }
 
     private final class MusicWebViewClient extends WebViewClient {
@@ -357,9 +467,15 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            playbackActive = false;
+        }
+
+        @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
-            injectAdBlockingScripts(view);
+            injectPageScripts(view);
             settingsButton.setVisibility(View.VISIBLE);
         }
 
@@ -368,10 +484,13 @@ public class MainActivity extends AppCompatActivity {
             if (normalized == null) {
                 return true;
             }
-            if (!normalized.equals(url)) {
-                view.loadUrl(normalized);
+            boolean needsReload = !normalized.equals(url)
+                    || SiteScope.isGoogleAccountUrl(normalized) != usingDefaultUserAgent;
+            if (needsReload) {
+                loadUrl(normalized);
                 return true;
             }
+            prepareForUrl(normalized);
             return false;
         }
 
