@@ -2,11 +2,14 @@ package com.skystream.ssmusic;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -35,6 +38,7 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
@@ -44,8 +48,19 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_THEME = "theme";
     private static final String KEY_DESKTOP_MODE = "desktop_mode";
     private static final String KEY_LAST_URL = "last_url";
+    private static final String KEY_LAST_POSITION_URL = "last_position_url";
+    private static final String KEY_LAST_POSITION_SECONDS = "last_position_seconds";
     private static final int REQUEST_APP_PERMISSIONS = 1001;
     private static final int REQUEST_WEB_PERMISSIONS = 1002;
+    static final String ACTION_MEDIA_COMMAND = "com.skystream.ssmusic.MEDIA_COMMAND";
+    static final String EXTRA_MEDIA_COMMAND = "media_command";
+    static final int MEDIA_COMMAND_TOGGLE = 0;
+    static final int MEDIA_COMMAND_PLAY = 1;
+    static final int MEDIA_COMMAND_PAUSE = 2;
+    static final int MEDIA_COMMAND_NEXT = 3;
+    static final int MEDIA_COMMAND_PREVIOUS = 4;
+    private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
+    private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -104,18 +119,40 @@ public class MainActivity extends AppCompatActivity {
                     + "try{Object.defineProperty(document,'webkitHidden',visible(false));}catch(e){}"
                     + "try{Object.defineProperty(document,'webkitVisibilityState',visible('visible'));}catch(e){}"
                     + "function stop(event){event.stopImmediatePropagation();}"
+                    + "function isBackgrounded(){"
+                    + "try{return document.visibilityState==='hidden'||!document.hasFocus();}"
+                    + "catch(e){return true;}"
+                    + "}"
+                    + "function keepPlaying(event){"
+                    + "var node=event&&event.target;"
+                    + "if(!node||typeof node.play!=='function'||!isBackgrounded()){return;}"
+                    + "if(window.ssmusicPlayback&&window.ssmusicPlayback.shouldAutoResume"
+                    + "&&!window.ssmusicPlayback.shouldAutoResume()){return;}"
+                    + "var p=node.play();"
+                    + "if(p&&typeof p.catch==='function'){p.catch(function(){});}"
+                    + "setTimeout(report,150);"
+                    + "}"
                     + "document.addEventListener('visibilitychange',stop,true);"
                     + "document.addEventListener('webkitvisibilitychange',stop,true);"
+                    + "document.addEventListener('pause',keepPlaying,true);"
                     + "function report(){"
                     + "if(window.ssmusicPlayback){window.ssmusicPlayback.setLocation(location.href);}"
                     + "var nodes=document.querySelectorAll('audio,video');"
                     + "var playing=false;"
+                    + "var position=0;"
                     + "for(var i=0;i<nodes.length;i++){"
                     + "var node=nodes[i];"
+                    + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
+                    + "position=node.currentTime;"
+                    + "}"
                     + "if(!node.paused&&!node.ended&&node.readyState>2){playing=true;break;}"
                     + "}"
-                    + "if(window.ssmusicPlayback){window.ssmusicPlayback.setPlaying(playing);}"
+                    + "if(window.ssmusicPlayback){"
+                    + "window.ssmusicPlayback.setPosition(location.href,position);"
+                    + "window.ssmusicPlayback.setPlaying(playing);"
                     + "}"
+                    + "}"
+                    + "window.__ssmusicForceReport=report;"
                     + "document.addEventListener('play',report,true);"
                     + "document.addEventListener('pause',report,true);"
                     + "document.addEventListener('ended',report,true);"
@@ -136,6 +173,20 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean playbackActive;
     private boolean usingDefaultUserAgent;
     private boolean playbackBridgeEnabled;
+    private boolean mediaCommandReceiverRegistered;
+    private volatile long suppressAutoResumeUntilElapsedMs;
+    private long lastPlaybackSignalAtElapsedMs;
+    private String lastPersistedPositionUrl;
+    private float lastPersistedPositionSeconds;
+    private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context context, Intent intent) {
+            if (!ACTION_MEDIA_COMMAND.equals(intent.getAction())) {
+                return;
+            }
+            applyMediaCommand(intent.getIntExtra(EXTRA_MEDIA_COMMAND, MEDIA_COMMAND_TOGGLE));
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -143,10 +194,13 @@ public class MainActivity extends AppCompatActivity {
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         applyTheme(preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM));
         setContentView(R.layout.activity_main);
+        lastPersistedPositionUrl = preferences.getString(KEY_LAST_POSITION_URL, null);
+        lastPersistedPositionSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
         webView = findViewById(R.id.webview);
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> showPreferences());
         configureWebView();
+        registerMediaCommandReceiver();
         settingsButton.setVisibility(View.VISIBLE);
         requestAppPermissions();
 
@@ -173,13 +227,17 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
-        if (!isFinishing() && playbackActive) {
-            startPlaybackKeepAliveService();
+        if (!isFinishing() && isPlaybackLikelyActive()) {
+            startPlaybackKeepAliveService(playbackActive ? Boolean.TRUE : null);
         }
     }
 
     @Override
     protected void onDestroy() {
+        if (mediaCommandReceiverRegistered) {
+            unregisterReceiver(mediaCommandReceiver);
+            mediaCommandReceiverRegistered = false;
+        }
         if (isFinishing()) {
             stopService(new Intent(this, PlaybackKeepAliveService.class));
         }
@@ -412,6 +470,16 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
     }
 
+    private void registerMediaCommandReceiver() {
+        IntentFilter filter = new IntentFilter(ACTION_MEDIA_COMMAND);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mediaCommandReceiver, filter, RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(mediaCommandReceiver, filter);
+        }
+        mediaCommandReceiverRegistered = true;
+    }
+
     private void loadUrl(String url) {
         prepareForUrl(url);
         webView.loadUrl(url);
@@ -446,8 +514,12 @@ public class MainActivity extends AppCompatActivity {
         playbackBridgeEnabled = enabled;
     }
 
-    private void startPlaybackKeepAliveService() {
+    private void startPlaybackKeepAliveService(Boolean playingState) {
         Intent serviceIntent = new Intent(this, PlaybackKeepAliveService.class);
+        if (playingState != null) {
+            serviceIntent.setAction(PlaybackKeepAliveService.ACTION_SYNC_PLAYBACK_STATE);
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_PLAYING, playingState);
+        }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -466,14 +538,118 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void persistPlaybackPosition(String url, double seconds) {
+        String normalized = SiteScope.normalizeInAppUrl(url);
+        if (!SiteScope.isPlaybackUrl(normalized) || !Double.isFinite(seconds) || seconds < 0d) {
+            return;
+        }
+        // Persist only meaningful progress changes to avoid high-frequency disk writes.
+        float value = (float) seconds;
+        if (normalized.equals(lastPersistedPositionUrl)
+                && Math.abs(value - lastPersistedPositionSeconds) < 1f) {
+            return;
+        }
+        preferences.edit()
+                .putString(KEY_LAST_POSITION_URL, normalized)
+                .putFloat(KEY_LAST_POSITION_SECONDS, value)
+                .apply();
+        lastPersistedPositionUrl = normalized;
+        lastPersistedPositionSeconds = value;
+    }
+
+    private void restorePlaybackPosition(WebView view, String url) {
+        String normalized = SiteScope.normalizeInAppUrl(url);
+        if (!SiteScope.isPlaybackUrl(normalized)
+                || !normalized.equals(preferences.getString(KEY_LAST_POSITION_URL, null))) {
+            return;
+        }
+        // Restore only for the same playback URL so stale progress is never applied elsewhere.
+        float savedSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
+        if (savedSeconds <= 0f) {
+            return;
+        }
+        String target = String.format(Locale.US, "%.3f", savedSeconds);
+        String script = "(function(){"
+                + "var target=" + target + ";"
+                + "if(!(target>0)){return;}"
+                + "function seek(){"
+                + "var node=document.querySelector('audio,video');"
+                + "if(!node){return false;}"
+                + "var maxTarget=target;"
+                + "if(node.duration&&isFinite(node.duration)&&target>=node.duration){"
+                + "maxTarget=Math.max(0,node.duration-1);"
+                + "}"
+                + "if(Math.abs((node.currentTime||0)-maxTarget)<1){return true;}"
+                + "try{node.currentTime=maxTarget;}catch(e){}"
+                + "return true;"
+                + "}"
+                + "if(seek()){return;}"
+                + "var tries=0;"
+                + "var timer=setInterval(function(){"
+                + "tries++;"
+                + "if(seek()||tries>40){clearInterval(timer);}"
+                + "},250);"
+                + "})();";
+        view.evaluateJavascript(script, null);
+    }
+
+    private void applyMediaCommand(int command) {
+        if (!playbackBridgeEnabled) {
+            return;
+        }
+        if (command == MEDIA_COMMAND_PAUSE) {
+            suppressAutoResumeUntilElapsedMs = SystemClock.elapsedRealtime() + AUTO_RESUME_SUPPRESSION_MS;
+        } else {
+            suppressAutoResumeUntilElapsedMs = 0L;
+        }
+        String script;
+        if (command == MEDIA_COMMAND_PLAY) {
+            script = "(function(){var node=document.querySelector('audio,video');"
+                    + "if(node&&typeof node.play==='function'){"
+                    + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
+                    + "}if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
+        } else if (command == MEDIA_COMMAND_PAUSE) {
+            script = "(function(){var node=document.querySelector('audio,video');"
+                    + "if(node&&typeof node.pause==='function'){node.pause();}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
+        } else if (command == MEDIA_COMMAND_NEXT) {
+            script = "(function(){"
+                    + "var btn=document.querySelector('ytmusic-player-bar .next-button,tp-yt-paper-icon-button.next-button');"
+                    + "if(btn){btn.click();}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}"
+                    + "})();";
+        } else if (command == MEDIA_COMMAND_PREVIOUS) {
+            script = "(function(){"
+                    + "var btn=document.querySelector('ytmusic-player-bar .previous-button,tp-yt-paper-icon-button.previous-button');"
+                    + "if(btn){btn.click();}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}"
+                    + "})();";
+        } else {
+            script = "(function(){var node=document.querySelector('audio,video');"
+                    + "if(node){"
+                    + "if(node.paused&&typeof node.play==='function'){"
+                    + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
+                    + "}else if(typeof node.pause==='function'){node.pause();}"
+                    + "}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
+        }
+        runOnUiThread(() -> webView.evaluateJavascript(script, null));
+    }
+
     private synchronized void updatePlaybackService(boolean playing) {
+        if (playing) {
+            lastPlaybackSignalAtElapsedMs = SystemClock.elapsedRealtime();
+        }
         if (playbackActive == playing) {
+            if (playing) {
+                runOnUiThread(() -> startPlaybackKeepAliveService(Boolean.TRUE));
+            }
             return;
         }
         playbackActive = playing;
         runOnUiThread(() -> {
             if (playing) {
-                startPlaybackKeepAliveService();
+                startPlaybackKeepAliveService(Boolean.TRUE);
             } else {
                 stopService(new Intent(MainActivity.this,
                         PlaybackKeepAliveService.class));
@@ -491,6 +667,28 @@ public class MainActivity extends AppCompatActivity {
         public void setLocation(String url) {
             persistLocation(url);
         }
+
+        @JavascriptInterface
+        public void setPosition(String url, double seconds) {
+            persistPlaybackPosition(url, seconds);
+        }
+
+        @JavascriptInterface
+        public boolean shouldAutoResume() {
+            return SystemClock.elapsedRealtime() >= suppressAutoResumeUntilElapsedMs;
+        }
+    }
+
+    private boolean isPlaybackLikelyActive() {
+        String normalized = SiteScope.normalizeInAppUrl(webView.getUrl());
+        if (!SiteScope.isPlaybackUrl(normalized)) {
+            return false;
+        }
+        if (playbackActive) {
+            return true;
+        }
+        return lastPlaybackSignalAtElapsedMs > 0L
+                && SystemClock.elapsedRealtime() - lastPlaybackSignalAtElapsedMs <= PLAYBACK_SIGNAL_GRACE_MS;
     }
 
     private final class MusicWebViewClient extends WebViewClient {
@@ -524,6 +722,7 @@ public class MainActivity extends AppCompatActivity {
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             injectPageScripts(view);
+            restorePlaybackPosition(view, url);
             persistLocation(url);
             settingsButton.setVisibility(View.VISIBLE);
             CookieManager.getInstance().flush();
