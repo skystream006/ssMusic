@@ -327,7 +327,7 @@ public class PlaybackKeepAliveService extends Service {
 
     private String displayArtist() {
         return artist == null || artist.isEmpty()
-                ? getString(R.string.playback_notification_text) : artist;
+                ? getString(R.string.playback_notification_unknown_artist) : artist;
     }
 
     private void createNotificationChannel() {

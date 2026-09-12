@@ -563,8 +563,12 @@ public class MainActivity extends AppCompatActivity {
                 (long) (lastReportedPositionSeconds * 1000f));
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_DURATION_MS,
                 lastPlaybackDurationMs);
-        serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_TITLE, currentTrackTitle);
-        serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_ARTIST, currentTrackArtist);
+        if (currentTrackTitle != null && !currentTrackTitle.isEmpty()) {
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_TITLE, currentTrackTitle);
+        }
+        if (currentTrackArtist != null && !currentTrackArtist.isEmpty()) {
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_ARTIST, currentTrackArtist);
+        }
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_START_TOKEN,
                 ++keepAliveStartToken);
         try {
@@ -792,6 +796,9 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 String sanitizedTitle = sanitizeMetadata(title);
                 String sanitizedArtist = sanitizeMetadata(artist);
+                if (sanitizedTitle.isEmpty()) {
+                    return;
+                }
                 if (sanitizedTitle.equals(currentTrackTitle) && sanitizedArtist.equals(currentTrackArtist)) {
                     return;
                 }
