@@ -25,6 +25,8 @@ public class PlaybackKeepAliveService extends Service {
     private static final String ACTION_PAUSE = "com.skystream.ssmusic.PAUSE";
     private static final String ACTION_NEXT = "com.skystream.ssmusic.NEXT";
     private static final String ACTION_PREVIOUS = "com.skystream.ssmusic.PREVIOUS";
+    static final String ACTION_SYNC_PLAYBACK_STATE = "com.skystream.ssmusic.SYNC_PLAYBACK_STATE";
+    static final String EXTRA_SYNC_PLAYING = "sync_playing";
     // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
     // renewed on every onStartCommand call while playback keeps the service alive.
     private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
@@ -38,7 +40,7 @@ public class PlaybackKeepAliveService extends Service {
         createNotificationChannel();
         try {
             activateMediaSession();
-            handleAction(intent == null ? null : intent.getAction(), false);
+            handleAction(intent, false);
             Notification notification = buildNotification();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification,
@@ -164,13 +166,12 @@ public class PlaybackKeepAliveService extends Service {
         mediaSession.setActive(true);
     }
 
-    private void handleAction(String action, boolean notify) {
+    private void handleAction(Intent intent, boolean notify) {
+        String action = intent == null ? null : intent.getAction();
         if (ACTION_PLAY.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
-            setPlaying(true, notify);
         } else if (ACTION_PAUSE.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
-            setPlaying(false, notify);
         } else if (ACTION_NEXT.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_NEXT);
         } else if (ACTION_PREVIOUS.equals(action)) {
@@ -178,7 +179,8 @@ public class PlaybackKeepAliveService extends Service {
         } else if (ACTION_TOGGLE_PLAYBACK.equals(action)) {
             int command = playing ? MainActivity.MEDIA_COMMAND_PAUSE : MainActivity.MEDIA_COMMAND_PLAY;
             handleMediaCommand(command);
-            setPlaying(!playing, notify);
+        } else if (ACTION_SYNC_PLAYBACK_STATE.equals(action) && intent != null) {
+            setPlaying(intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing), notify);
         }
     }
 

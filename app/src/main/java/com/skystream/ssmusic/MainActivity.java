@@ -228,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
         if (!isFinishing() && isPlaybackLikelyActive()) {
-            startPlaybackKeepAliveService();
+            startPlaybackKeepAliveService(playbackActive ? Boolean.TRUE : null);
         }
     }
 
@@ -514,8 +514,12 @@ public class MainActivity extends AppCompatActivity {
         playbackBridgeEnabled = enabled;
     }
 
-    private void startPlaybackKeepAliveService() {
+    private void startPlaybackKeepAliveService(Boolean playingState) {
         Intent serviceIntent = new Intent(this, PlaybackKeepAliveService.class);
+        if (playingState != null) {
+            serviceIntent.setAction(PlaybackKeepAliveService.ACTION_SYNC_PLAYBACK_STATE);
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_PLAYING, playingState);
+        }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -633,16 +637,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private synchronized void updatePlaybackService(boolean playing) {
-        if (playbackActive == playing) {
-            return;
-        }
-        playbackActive = playing;
         if (playing) {
             lastPlaybackSignalAtElapsedMs = SystemClock.elapsedRealtime();
         }
+        if (playbackActive == playing) {
+            if (playing) {
+                runOnUiThread(() -> startPlaybackKeepAliveService(Boolean.TRUE));
+            }
+            return;
+        }
+        playbackActive = playing;
         runOnUiThread(() -> {
             if (playing) {
-                startPlaybackKeepAliveService();
+                startPlaybackKeepAliveService(Boolean.TRUE);
             } else {
                 stopService(new Intent(MainActivity.this,
                         PlaybackKeepAliveService.class));
@@ -680,7 +687,8 @@ public class MainActivity extends AppCompatActivity {
         if (playbackActive) {
             return true;
         }
-        return SystemClock.elapsedRealtime() - lastPlaybackSignalAtElapsedMs <= PLAYBACK_SIGNAL_GRACE_MS;
+        return lastPlaybackSignalAtElapsedMs > 0L
+                && SystemClock.elapsedRealtime() - lastPlaybackSignalAtElapsedMs <= PLAYBACK_SIGNAL_GRACE_MS;
     }
 
     private final class MusicWebViewClient extends WebViewClient {
