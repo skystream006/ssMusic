@@ -193,7 +193,7 @@ public class MainActivity extends AppCompatActivity {
     private long keepAliveStartToken;
     private volatile long suppressAutoResumeUntilElapsedMs;
     private long lastPlaybackSignalAtElapsedMs;
-    private String lastPersistedPositionUrl;
+    private String lastPersistedPositionIdentityUrl;
     private float lastPersistedPositionSeconds;
     private String lastReportedPositionUrl;
     private float lastReportedPositionSeconds;
@@ -217,10 +217,10 @@ public class MainActivity extends AppCompatActivity {
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         applyTheme(preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM));
         setContentView(R.layout.activity_main);
-        lastPersistedPositionUrl = Preferences.playbackIdentityUrl(
+        lastPersistedPositionIdentityUrl = Preferences.playbackIdentityUrl(
                 preferences.getString(KEY_LAST_POSITION_URL, null));
         lastPersistedPositionSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
-        lastReportedPositionUrl = lastPersistedPositionUrl;
+        lastReportedPositionUrl = lastPersistedPositionIdentityUrl;
         lastReportedPositionSeconds = lastPersistedPositionSeconds;
         webView = findViewById(R.id.webview);
         settingsButton = findViewById(R.id.settings_button);
@@ -580,7 +580,7 @@ public class MainActivity extends AppCompatActivity {
     private void persistLocation(String url) {
         String normalized = SiteScope.normalizeInAppUrl(url);
         if (SiteScope.isPlaybackUrl(normalized)) {
-            if (Preferences.isSamePlaybackItem(normalized, lastPersistedPositionUrl)) {
+            if (Preferences.isSamePlaybackItem(normalized, lastPersistedPositionIdentityUrl)) {
                 String withTimestamp = Preferences.playbackUrlWithTimestamp(
                         normalized, lastPersistedPositionSeconds);
                 if (withTimestamp != null) {
@@ -599,7 +599,7 @@ public class MainActivity extends AppCompatActivity {
         }
         // Persist only meaningful progress changes to avoid high-frequency disk writes.
         float value = (float) seconds;
-        if (identityUrl.equals(lastPersistedPositionUrl)
+        if (identityUrl.equals(lastPersistedPositionIdentityUrl)
                 && Math.abs(value - lastPersistedPositionSeconds) < 1f) {
             return;
         }
@@ -609,7 +609,7 @@ public class MainActivity extends AppCompatActivity {
                 .putFloat(KEY_LAST_POSITION_SECONDS, value)
                 .putString(KEY_LAST_URL, urlWithTimestamp)
                 .apply();
-        lastPersistedPositionUrl = identityUrl;
+        lastPersistedPositionIdentityUrl = identityUrl;
         lastPersistedPositionSeconds = value;
     }
 
