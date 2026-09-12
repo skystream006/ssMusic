@@ -153,7 +153,7 @@ public class MainActivity extends AppCompatActivity {
                     + "var active=null;"
                     + "for(var i=0;i<nodes.length;i++){"
                     + "var node=nodes[i];"
-                    + "if(!node.paused&&!node.ended&&node.readyState>2){"
+                    + "if(!node.paused&&!node.ended){"
                     + "active=node;playing=true;break;"
                     + "}"
                     + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
@@ -698,13 +698,26 @@ public class MainActivity extends AppCompatActivity {
         }
         String script;
         if (command == MEDIA_COMMAND_PLAY) {
-            script = "(function(){var node=document.querySelector('audio,video');"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');var active=null;var node=null;"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "if(!nodes[i].ended&&!nodes[i].paused){active=nodes[i];break;}"
+                    + "}"
+                    + "if(!active){"
+                    + "for(var j=0;j<nodes.length;j++){"
+                    + "if(!nodes[j].ended&&((nodes[j].currentTime||0)>0||nodes[j].paused)){node=nodes[j];break;}"
+                    + "}"
+                    + "if(!node&&nodes.length){node=nodes[0];}"
                     + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
-                    + "}if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
+                    + "}"
+                    + "}"
+                    + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else if (command == MEDIA_COMMAND_PAUSE || command == MEDIA_COMMAND_STOP) {
-            script = "(function(){var node=document.querySelector('audio,video');"
-                    + "if(node&&typeof node.pause==='function'){node.pause();}"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "var node=nodes[i];"
+                    + "if(!node.ended&&!node.paused&&typeof node.pause==='function'){node.pause();}"
+                    + "}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else if (command == MEDIA_COMMAND_NEXT) {
             script = "(function(){"
@@ -721,16 +734,25 @@ public class MainActivity extends AppCompatActivity {
         } else if (command == MEDIA_COMMAND_SEEK) {
             String position = String.format(Locale.US, "%.3f", Math.max(0L, positionMs) / 1000d);
             script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
-                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].paused&&!nodes[i].ended&&nodes[i].readyState>2){node=nodes[i];break;}}"
+                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].ended&&!nodes[i].paused){node=nodes[i];break;}}"
                     + "if(!node&&nodes.length){node=nodes[0];}"
                     + "if(node){try{node.currentTime=" + position + ";}catch(e){}}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         } else {
-            script = "(function(){var node=document.querySelector('audio,video');"
-                    + "if(node){"
-                    + "if(node.paused&&typeof node.play==='function'){"
+            script = "(function(){var nodes=document.querySelectorAll('audio,video');var node=null;"
+                    + "for(var i=0;i<nodes.length;i++){if(!nodes[i].ended&&!nodes[i].paused){node=nodes[i];break;}}"
+                    + "if(node&&typeof node.pause==='function'){"
+                    + "for(var j=0;j<nodes.length;j++){"
+                    + "if(!nodes[j].ended&&!nodes[j].paused&&typeof nodes[j].pause==='function'){nodes[j].pause();}"
+                    + "}"
+                    + "}else{"
+                    + "for(var k=0;k<nodes.length;k++){"
+                    + "if(!nodes[k].ended&&((nodes[k].currentTime||0)>0||nodes[k].paused)){node=nodes[k];break;}"
+                    + "}"
+                    + "if(!node&&nodes.length){node=nodes[0];}"
+                    + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
-                    + "}else if(typeof node.pause==='function'){node.pause();}"
+                    + "}"
                     + "}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
         }
