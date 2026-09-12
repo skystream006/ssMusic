@@ -1,6 +1,7 @@
 package com.skystream.ssmusic;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -22,6 +23,36 @@ public class PreferencesTest {
     public void restoresYoutubeMusicLocation() {
         String currentSong = "https://music.youtube.com/watch?v=song123&list=playlist456";
         assertEquals(currentSong, Preferences.restoreUrl(currentSong));
+    }
+
+    @Test
+    public void createsPlaybackIdentityFromVideoAndPlaylist() {
+        assertEquals("https://music.youtube.com/watch?v=song123&list=playlist456",
+                Preferences.playbackIdentityUrl(
+                        "https://music.youtube.com/watch?list=playlist456&v=song123&t=42&feature=share"));
+    }
+
+    @Test
+    public void buildsPersistedPlaybackUrlWithTimestamp() {
+        assertEquals("https://music.youtube.com/watch?v=song123&list=playlist456&t=120",
+                Preferences.buildPersistedPlaybackUrl(
+                        "https://music.youtube.com/watch?v=song123&list=playlist456&t=5",
+                        120.75d));
+    }
+
+    @Test
+    public void rejectsInvalidPlaybackTimestamps() {
+        String currentSong = "https://music.youtube.com/watch?v=song123&list=playlist456";
+        assertNull(Preferences.buildPersistedPlaybackUrl(currentSong, -1d));
+        assertNull(Preferences.buildPersistedPlaybackUrl(currentSong, Double.NaN));
+        assertNull(Preferences.buildPersistedPlaybackUrl(currentSong, Double.POSITIVE_INFINITY));
+    }
+
+    @Test
+    public void comparesPlaybackItemsWithoutTimestamp() {
+        assertTrue(Preferences.isSamePlaybackItem(
+                "https://music.youtube.com/watch?v=song123&list=playlist456&t=5",
+                "https://music.youtube.com/watch?list=playlist456&v=song123&t=120"));
     }
 
     @Test
