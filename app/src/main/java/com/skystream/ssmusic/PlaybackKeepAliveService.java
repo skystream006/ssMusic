@@ -30,6 +30,8 @@ public class PlaybackKeepAliveService extends Service {
     static final String EXTRA_SYNC_PLAYING = "sync_playing";
     static final String EXTRA_SYNC_POSITION_MS = "sync_position_ms";
     static final String EXTRA_SYNC_DURATION_MS = "sync_duration_ms";
+    static final String EXTRA_SYNC_TITLE = "sync_title";
+    static final String EXTRA_SYNC_ARTIST = "sync_artist";
     static final String EXTRA_SYNC_START_TOKEN = "sync_start_token";
     private static final int REQUEST_PREVIOUS = 1;
     private static final int REQUEST_TOGGLE_PLAYBACK = 2;
@@ -45,6 +47,8 @@ public class PlaybackKeepAliveService extends Service {
     private long positionMs;
     private long durationMs;
     private long startToken;
+    private String title;
+    private String artist;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -139,8 +143,8 @@ public class PlaybackKeepAliveService extends Service {
                 : new Notification.Builder(this);
         builder
                 .setSmallIcon(R.drawable.ic_launcher)
-                .setContentTitle(getString(R.string.playback_notification_title))
-                .setContentText(getString(R.string.playback_notification_text))
+                .setContentTitle(displayTitle())
+                .setContentText(displayArtist())
                 .setContentIntent(pendingIntent)
                 .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -176,13 +180,11 @@ public class PlaybackKeepAliveService extends Service {
                 @Override
                 public void onPlay() {
                     handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
-                    setPlaying(true, true);
                 }
 
                 @Override
                 public void onPause() {
                     handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
-                    setPlaying(false, true);
                 }
 
                 @Override
@@ -231,6 +233,12 @@ public class PlaybackKeepAliveService extends Service {
             startToken = Math.max(startToken, intent.getLongExtra(EXTRA_SYNC_START_TOKEN, startToken));
             positionMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_POSITION_MS, positionMs));
             durationMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_DURATION_MS, durationMs));
+            if (intent.hasExtra(EXTRA_SYNC_TITLE)) {
+                title = intent.getStringExtra(EXTRA_SYNC_TITLE);
+            }
+            if (intent.hasExtra(EXTRA_SYNC_ARTIST)) {
+                artist = intent.getStringExtra(EXTRA_SYNC_ARTIST);
+            }
             updateMediaMetadata();
             setPlaying(intent.hasExtra(EXTRA_SYNC_PLAYING)
                     ? intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing) : playing, notify);
@@ -304,11 +312,22 @@ public class PlaybackKeepAliveService extends Service {
         }
         MediaMetadata.Builder metadata = new MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE,
-                        getString(R.string.playback_notification_title));
+                        displayTitle())
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist());
         if (durationMs > 0L) {
             metadata.putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs);
         }
         mediaSession.setMetadata(metadata.build());
+    }
+
+    private String displayTitle() {
+        return title == null || title.isEmpty()
+                ? getString(R.string.playback_notification_title) : title;
+    }
+
+    private String displayArtist() {
+        return artist == null || artist.isEmpty()
+                ? getString(R.string.playback_notification_unknown_artist) : artist;
     }
 
     private void createNotificationChannel() {

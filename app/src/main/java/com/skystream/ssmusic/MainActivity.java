@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
 public class MainActivity extends AppCompatActivity {
@@ -67,6 +68,8 @@ public class MainActivity extends AppCompatActivity {
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
+    private static final int MAX_METADATA_LENGTH = 200;
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -163,6 +166,13 @@ public class MainActivity extends AppCompatActivity {
                     + "duration=(typeof active.duration==='number'&&isFinite(active.duration))?active.duration:0;}"
                     + "if(window.ssmusicPlayback){"
                     + "window.ssmusicPlayback.setPosition(location.href,position,duration);"
+                    + "var player=document.querySelector('ytmusic-player-bar');"
+                    + "var text=function(selector){var element=(player||document).querySelector(selector);"
+                    + "return element&&element.textContent?element.textContent.trim():'';};"
+                    + "var title=text('.title');"
+                    + "if(!title){title=(document.title||'').replace(/\\s*-\\s*YouTube Music\\s*$/i,'');}"
+                    + "var artist=text('.byline')||text('.subtitle');"
+                    + "window.ssmusicPlayback.setMetadata(title,artist);"
                     + "window.ssmusicPlayback.setPlaying(playing);"
                     + "}"
                     + "}"
@@ -199,6 +209,8 @@ public class MainActivity extends AppCompatActivity {
     private float lastReportedPositionSeconds;
     private float lastServicePositionSeconds = Float.NaN;
     private long lastPlaybackDurationMs;
+    private String currentTrackTitle;
+    private String currentTrackArtist;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -553,6 +565,12 @@ public class MainActivity extends AppCompatActivity {
                 (long) (lastReportedPositionSeconds * 1000f));
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_DURATION_MS,
                 lastPlaybackDurationMs);
+        if (currentTrackTitle != null && !currentTrackTitle.isEmpty()) {
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_TITLE, currentTrackTitle);
+        }
+        if (currentTrackArtist != null && !currentTrackArtist.isEmpty()) {
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_ARTIST, currentTrackArtist);
+        }
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_START_TOKEN,
                 ++keepAliveStartToken);
         try {
@@ -776,9 +794,37 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void setMetadata(String title, String artist) {
+            runOnUiThread(() -> {
+                String sanitizedTitle = sanitizeMetadata(title);
+                String sanitizedArtist = sanitizeMetadata(artist);
+                if (sanitizedTitle.isEmpty()) {
+                    return;
+                }
+                if (sanitizedTitle.equals(currentTrackTitle) && sanitizedArtist.equals(currentTrackArtist)) {
+                    return;
+                }
+                currentTrackTitle = sanitizedTitle;
+                currentTrackArtist = sanitizedArtist;
+                if (keepAliveServiceRunning) {
+                    startPlaybackKeepAliveService(null);
+                }
+            });
+        }
+
+        @JavascriptInterface
         public boolean shouldAutoResume() {
             return SystemClock.elapsedRealtime() >= suppressAutoResumeUntilElapsedMs;
         }
+    }
+
+    private String sanitizeMetadata(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = WHITESPACE.matcher(value.trim()).replaceAll(" ");
+        return normalized.length() <= MAX_METADATA_LENGTH
+                ? normalized : normalized.substring(0, MAX_METADATA_LENGTH);
     }
 
     private boolean isPlaybackLikelyActive() {

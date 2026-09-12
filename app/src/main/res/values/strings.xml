@@ -19,6 +19,7 @@
     <string name="playback_notification_channel">Playback</string>
     <string name="playback_notification_title">ssMusic is playing</string>
     <string name="playback_notification_text">Tap to return to YouTube Music.</string>
+    <string name="playback_notification_unknown_artist">Unknown artist</string>
     <string name="playback_play">Play</string>
     <string name="playback_pause">Pause</string>
     <string name="playback_next">Next</string>
