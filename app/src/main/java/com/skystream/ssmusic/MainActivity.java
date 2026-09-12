@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
 public class MainActivity extends AppCompatActivity {
@@ -68,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -165,8 +167,8 @@ public class MainActivity extends AppCompatActivity {
                     + "if(window.ssmusicPlayback){"
                     + "window.ssmusicPlayback.setPosition(location.href,position,duration);"
                     + "var player=document.querySelector('ytmusic-player-bar');"
-                    + "function text(selector){var element=(player||document).querySelector(selector);"
-                    + "return element&&element.textContent?element.textContent.trim():'';}"
+                    + "var text=function(selector){var element=(player||document).querySelector(selector);"
+                    + "return element&&element.textContent?element.textContent.trim():'';};"
                     + "var title=text('.title');"
                     + "if(!title){title=(document.title||'').replace(/\\s*-\\s*YouTube Music\\s*$/i,'');}"
                     + "var artist=text('.byline')||text('.subtitle');"
@@ -820,7 +822,7 @@ public class MainActivity extends AppCompatActivity {
         if (value == null) {
             return "";
         }
-        String normalized = value.trim().replaceAll("\\s+", " ");
+        String normalized = WHITESPACE.matcher(value.trim()).replaceAll(" ");
         return normalized.length() <= MAX_METADATA_LENGTH
                 ? normalized : normalized.substring(0, MAX_METADATA_LENGTH);
     }
