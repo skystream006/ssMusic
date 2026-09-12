@@ -63,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
     static final String EXTRA_MEDIA_POSITION_MS = "media_position_ms";
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
+    private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -189,6 +190,7 @@ public class MainActivity extends AppCompatActivity {
     private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionUrl;
     private float lastPersistedPositionSeconds;
+    private String lastReportedPositionUrl;
     private float lastReportedPositionSeconds;
     private float lastServicePositionSeconds = Float.NaN;
     private long lastPlaybackDurationMs;
@@ -211,6 +213,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         lastPersistedPositionUrl = preferences.getString(KEY_LAST_POSITION_URL, null);
         lastPersistedPositionSeconds = preferences.getFloat(KEY_LAST_POSITION_SECONDS, 0f);
+        lastReportedPositionUrl = lastPersistedPositionUrl;
         lastReportedPositionSeconds = lastPersistedPositionSeconds;
         webView = findViewById(R.id.webview);
         settingsButton = findViewById(R.id.settings_button);
@@ -241,7 +244,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        persistPlaybackPosition(webView.getUrl(), lastReportedPositionSeconds);
+        persistPlaybackPosition(lastReportedPositionUrl, lastReportedPositionSeconds);
         capturePlaybackPosition();
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
@@ -708,7 +711,10 @@ public class MainActivity extends AppCompatActivity {
         public void setPosition(String url, double seconds, double duration) {
             runOnUiThread(() -> {
                 persistPlaybackPosition(url, seconds);
-                if (Double.isFinite(seconds) && seconds >= 0d) {
+                String normalized = SiteScope.normalizeInAppUrl(url);
+                if (SiteScope.isPlaybackUrl(normalized)
+                        && Double.isFinite(seconds) && seconds >= 0d) {
+                    lastReportedPositionUrl = normalized;
                     lastReportedPositionSeconds = (float) seconds;
                 }
                 if (Double.isFinite(duration) && duration > 0d) {
@@ -716,7 +722,8 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (playbackActive
                         && (Float.isNaN(lastServicePositionSeconds)
-                        || Math.abs(lastReportedPositionSeconds - lastServicePositionSeconds) >= 5f)) {
+                        || Math.abs(lastReportedPositionSeconds - lastServicePositionSeconds)
+                        >= MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS)) {
                     lastServicePositionSeconds = lastReportedPositionSeconds;
                     startPlaybackKeepAliveService(Boolean.TRUE);
                 }
