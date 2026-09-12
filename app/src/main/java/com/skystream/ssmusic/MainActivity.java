@@ -160,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
                     + "document.addEventListener('play',report,true);"
                     + "document.addEventListener('pause',report,true);"
                     + "document.addEventListener('ended',report,true);"
+                    + "window.addEventListener('pagehide',report);"
                     + "window.addEventListener('popstate',report);"
                     + "window.addEventListener('hashchange',report);"
                     + "var pushState=history.pushState;"
