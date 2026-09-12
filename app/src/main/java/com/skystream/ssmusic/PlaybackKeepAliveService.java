@@ -25,6 +25,7 @@ public class PlaybackKeepAliveService extends Service {
     private static final String ACTION_PAUSE = "com.skystream.ssmusic.PAUSE";
     private static final String ACTION_NEXT = "com.skystream.ssmusic.NEXT";
     private static final String ACTION_PREVIOUS = "com.skystream.ssmusic.PREVIOUS";
+    private static final String ACTION_STOP = "com.skystream.ssmusic.STOP";
     static final String ACTION_SYNC_PLAYBACK_STATE = "com.skystream.ssmusic.SYNC_PLAYBACK_STATE";
     static final String EXTRA_SYNC_PLAYING = "sync_playing";
     static final String EXTRA_SYNC_POSITION_MS = "sync_position_ms";
@@ -52,12 +53,34 @@ public class PlaybackKeepAliveService extends Service {
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
-            acquireWakeLock();
+            // The notification stays up while paused so transport buttons keep working,
+            // but the wake lock is only needed while audio is actually playing.
+            if (playing) {
+                acquireWakeLock();
+            } else {
+                releaseWakeLock();
+            }
+            if (ACTION_STOP.equals(intent == null ? null : intent.getAction())) {
+                stopPlayback();
+            }
         } catch (RuntimeException e) {
             stopSelf();
             return START_NOT_STICKY;
         }
         return START_NOT_STICKY;
+    }
+
+    private void stopPlayback() {
+        releaseWakeLock();
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
+        stopSelf();
     }
 
     @Override
@@ -111,7 +134,8 @@ public class PlaybackKeepAliveService extends Service {
                 .setContentIntent(pendingIntent)
                 .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setOngoing(true);
+                .setDeleteIntent(serviceIntent(ACTION_STOP, 4))
+                .setOngoing(playing);
         builder.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_previous,
                 getString(R.string.playback_previous),
@@ -178,8 +202,10 @@ public class PlaybackKeepAliveService extends Service {
         String action = intent == null ? null : intent.getAction();
         if (ACTION_PLAY.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
+            setPlaying(true, notify);
         } else if (ACTION_PAUSE.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
+            setPlaying(false, notify);
         } else if (ACTION_NEXT.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_NEXT);
         } else if (ACTION_PREVIOUS.equals(action)) {
@@ -187,6 +213,10 @@ public class PlaybackKeepAliveService extends Service {
         } else if (ACTION_TOGGLE_PLAYBACK.equals(action)) {
             int command = playing ? MainActivity.MEDIA_COMMAND_PAUSE : MainActivity.MEDIA_COMMAND_PLAY;
             handleMediaCommand(command);
+            setPlaying(!playing, notify);
+        } else if (ACTION_STOP.equals(action)) {
+            handleMediaCommand(MainActivity.MEDIA_COMMAND_STOP);
+            setPlaying(false, notify);
         } else if (ACTION_SYNC_PLAYBACK_STATE.equals(action) && intent != null) {
             positionMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_POSITION_MS, positionMs));
             durationMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_DURATION_MS, durationMs));

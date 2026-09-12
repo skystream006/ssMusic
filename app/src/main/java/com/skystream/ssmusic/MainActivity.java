@@ -60,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     static final int MEDIA_COMMAND_NEXT = 3;
     static final int MEDIA_COMMAND_PREVIOUS = 4;
     static final int MEDIA_COMMAND_SEEK = 5;
+    static final int MEDIA_COMMAND_STOP = 6;
     static final String EXTRA_MEDIA_POSITION_MS = "media_position_ms";
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
@@ -186,6 +187,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean usingDefaultUserAgent;
     private boolean playbackBridgeEnabled;
     private boolean mediaCommandReceiverRegistered;
+    private boolean keepAliveServiceRunning;
     private volatile long suppressAutoResumeUntilElapsedMs;
     private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionUrl;
@@ -260,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
             mediaCommandReceiverRegistered = false;
         }
         if (isFinishing()) {
-            stopService(new Intent(this, PlaybackKeepAliveService.class));
+            stopPlaybackKeepAliveService();
         }
         super.onDestroy();
     }
@@ -507,7 +509,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void prepareForUrl(String url) {
-        updatePlaybackService(false);
+        playbackActive = false;
+        stopPlaybackKeepAliveService();
         setPlaybackBridgeEnabled(SiteScope.isPlaybackUrl(url));
         applyUserAgentForUrl(url);
     }
@@ -551,9 +554,20 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 startService(serviceIntent);
             }
+            keepAliveServiceRunning = true;
         } catch (RuntimeException e) {
-            stopService(serviceIntent);
+            // A background start can be rejected; only tear down when no notification exists yet,
+            // so an already running notification is never dropped by a failed state sync.
+            if (!keepAliveServiceRunning) {
+                stopPlaybackKeepAliveService();
+            }
         }
+    }
+
+    private void stopPlaybackKeepAliveService() {
+        keepAliveServiceRunning = false;
+        lastServicePositionSeconds = Float.NaN;
+        stopService(new Intent(this, PlaybackKeepAliveService.class));
     }
 
     private void persistLocation(String url) {
@@ -626,10 +640,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyMediaCommand(int command, long positionMs) {
+        if (command == MEDIA_COMMAND_STOP) {
+            keepAliveServiceRunning = false;
+        }
         if (!playbackBridgeEnabled) {
             return;
         }
-        if (command == MEDIA_COMMAND_PAUSE) {
+        if (command == MEDIA_COMMAND_PAUSE || command == MEDIA_COMMAND_STOP) {
             suppressAutoResumeUntilElapsedMs = SystemClock.elapsedRealtime() + AUTO_RESUME_SUPPRESSION_MS;
         } else {
             suppressAutoResumeUntilElapsedMs = 0L;
@@ -640,7 +657,7 @@ public class MainActivity extends AppCompatActivity {
                     + "if(node&&typeof node.play==='function'){"
                     + "var p=node.play();if(p&&typeof p.catch==='function'){p.catch(function(){});}"
                     + "}if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
-        } else if (command == MEDIA_COMMAND_PAUSE) {
+        } else if (command == MEDIA_COMMAND_PAUSE || command == MEDIA_COMMAND_STOP) {
             script = "(function(){var node=document.querySelector('audio,video');"
                     + "if(node&&typeof node.pause==='function'){node.pause();}"
                     + "if(window.__ssmusicForceReport){window.__ssmusicForceReport();}})();";
@@ -689,9 +706,10 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             if (playing) {
                 startPlaybackKeepAliveService(Boolean.TRUE);
-            } else {
-                stopService(new Intent(MainActivity.this,
-                        PlaybackKeepAliveService.class));
+            } else if (keepAliveServiceRunning) {
+                // Keep the media notification up while paused so transport controls survive
+                // pausing from the notification itself or from leaving the app.
+                startPlaybackKeepAliveService(Boolean.FALSE);
             }
         });
     }
