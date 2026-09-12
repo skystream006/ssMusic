@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     static final int MEDIA_COMMAND_PREVIOUS = 4;
     static final int MEDIA_COMMAND_SEEK = 5;
     static final int MEDIA_COMMAND_STOP = 6;
+    static final int MEDIA_COMMAND_SERVICE_STOPPED = 7;
     static final String EXTRA_MEDIA_POSITION_MS = "media_position_ms";
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
@@ -640,6 +641,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyMediaCommand(int command, long positionMs) {
+        if (command == MEDIA_COMMAND_SERVICE_STOPPED) {
+            keepAliveServiceRunning = false;
+            return;
+        }
         if (command == MEDIA_COMMAND_STOP) {
             keepAliveServiceRunning = false;
         }

@@ -42,6 +42,11 @@ public class PlaybackKeepAliveService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (ACTION_STOP.equals(intent == null ? null : intent.getAction())) {
+            handleAction(intent, false);
+            stopPlayback();
+            return START_NOT_STICKY;
+        }
         createNotificationChannel();
         try {
             activateMediaSession();
@@ -59,9 +64,6 @@ public class PlaybackKeepAliveService extends Service {
                 acquireWakeLock();
             } else {
                 releaseWakeLock();
-            }
-            if (ACTION_STOP.equals(intent == null ? null : intent.getAction())) {
-                stopPlayback();
             }
         } catch (RuntimeException e) {
             stopSelf();
@@ -85,6 +87,8 @@ public class PlaybackKeepAliveService extends Service {
 
     @Override
     public void onDestroy() {
+        // Let the activity know the notification is gone so it stops syncing state to a dead service.
+        handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED);
         releaseWakeLock();
         if (mediaSession != null) {
             mediaSession.release();
