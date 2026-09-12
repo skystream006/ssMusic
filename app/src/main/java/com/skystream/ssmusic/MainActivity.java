@@ -28,6 +28,8 @@ import android.widget.TextView;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "ssmusic_prefs";
     private static final String KEY_THEME = "theme";
     private static final String KEY_DESKTOP_MODE = "desktop_mode";
+    private static final String KEY_LAST_URL = "last_url";
     private static final int REQUEST_APP_PERMISSIONS = 1001;
     private static final int REQUEST_WEB_PERMISSIONS = 1002;
 
@@ -104,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
                     + "document.addEventListener('visibilitychange',stop,true);"
                     + "document.addEventListener('webkitvisibilitychange',stop,true);"
                     + "function report(){"
+                    + "if(window.ssmusicPlayback){window.ssmusicPlayback.setLocation(location.href);}"
                     + "var nodes=document.querySelectorAll('audio,video');"
                     + "var playing=false;"
                     + "for(var i=0;i<nodes.length;i++){"
@@ -115,6 +119,12 @@ public class MainActivity extends AppCompatActivity {
                     + "document.addEventListener('play',report,true);"
                     + "document.addEventListener('pause',report,true);"
                     + "document.addEventListener('ended',report,true);"
+                    + "window.addEventListener('popstate',report);"
+                    + "window.addEventListener('hashchange',report);"
+                    + "var pushState=history.pushState;"
+                    + "history.pushState=function(){var result=pushState.apply(this,arguments);report();return result;};"
+                    + "var replaceState=history.replaceState;"
+                    + "history.replaceState=function(){var result=replaceState.apply(this,arguments);report();return result;};"
                     + "setInterval(report,5000);"
                     + "report();"
                     + "})()";
@@ -142,9 +152,13 @@ public class MainActivity extends AppCompatActivity {
 
         String target = urlFromIntent(getIntent());
         if (savedInstanceState != null && target == null) {
-            webView.restoreState(savedInstanceState);
+            if (webView.restoreState(savedInstanceState) == null) {
+                loadUrl(Preferences.restoreUrl(preferences.getString(KEY_LAST_URL, null)));
+            }
         } else {
-            loadUrl(target == null ? Preferences.homeUrl() : target);
+            loadUrl(target == null
+                    ? Preferences.restoreUrl(preferences.getString(KEY_LAST_URL, null))
+                    : target);
         }
     }
 
@@ -155,14 +169,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
-        stopService(new Intent(this, PlaybackKeepAliveService.class));
-    }
-
-    @Override
     protected void onStop() {
         super.onStop();
+        persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
         if (!isFinishing() && playbackActive) {
             startPlaybackKeepAliveService();
@@ -218,6 +227,9 @@ public class MainActivity extends AppCompatActivity {
         settings.setUseWideViewPort(true);
         settings.setUserAgentString(Preferences.userAgent(isDesktopMode()));
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        }
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -230,6 +242,12 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> grantWebPermissionsIfAllowed(request, true));
             }
         });
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            Set<String> origins = new HashSet<>();
+            origins.add("https://music.youtube.com");
+            WebViewCompat.addDocumentStartJavaScript(
+                    webView, BACKGROUND_PLAYBACK_SCRIPT, origins);
+        }
     }
 
     private String urlFromIntent(Intent intent) {
@@ -387,7 +405,9 @@ public class MainActivity extends AppCompatActivity {
         if (!SiteScope.isPlaybackUrl(view.getUrl())) {
             return;
         }
-        view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
+        }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
     }
@@ -398,7 +418,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void prepareForUrl(String url) {
-        playbackActive = false;
+        updatePlaybackService(false);
         setPlaybackBridgeEnabled(SiteScope.isPlaybackUrl(url));
         applyUserAgentForUrl(url);
     }
@@ -439,10 +459,37 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void persistLocation(String url) {
+        String normalized = SiteScope.normalizeInAppUrl(url);
+        if (SiteScope.isPlaybackUrl(normalized)) {
+            preferences.edit().putString(KEY_LAST_URL, normalized).apply();
+        }
+    }
+
+    private synchronized void updatePlaybackService(boolean playing) {
+        if (playbackActive == playing) {
+            return;
+        }
+        playbackActive = playing;
+        runOnUiThread(() -> {
+            if (playing) {
+                startPlaybackKeepAliveService();
+            } else {
+                stopService(new Intent(MainActivity.this,
+                        PlaybackKeepAliveService.class));
+            }
+        });
+    }
+
     private final class PlaybackBridge {
         @JavascriptInterface
         public void setPlaying(boolean playing) {
-            playbackActive = playing;
+            updatePlaybackService(playing);
+        }
+
+        @JavascriptInterface
+        public void setLocation(String url) {
+            persistLocation(url);
         }
     }
 
@@ -470,13 +517,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
-            playbackActive = false;
+            updatePlaybackService(false);
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             injectPageScripts(view);
+            persistLocation(url);
             settingsButton.setVisibility(View.VISIBLE);
             CookieManager.getInstance().flush();
         }

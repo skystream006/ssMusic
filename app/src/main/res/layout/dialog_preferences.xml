@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -99,7 +100,8 @@
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="@string/back"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_back" />
+            android:src="@drawable/ic_back"
+            app:tint="?android:attr/textColorPrimary" />
 
         <ImageButton
             android:id="@+id/forward_button"
@@ -109,7 +111,8 @@
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="@string/forward"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_forward" />
+            android:src="@drawable/ic_forward"
+            app:tint="?android:attr/textColorPrimary" />
 
         <ImageButton
             android:id="@+id/refresh_button"
@@ -119,7 +122,8 @@
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="@string/refresh"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_refresh" />
+            android:src="@drawable/ic_refresh"
+            app:tint="?android:attr/textColorPrimary" />
 
         <ImageButton
             android:id="@+id/home_button"
@@ -129,6 +133,7 @@
             android:background="?android:attr/selectableItemBackground"
             android:contentDescription="@string/home"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_home" />
+            android:src="@drawable/ic_home"
+            app:tint="?android:attr/textColorPrimary" />
     </LinearLayout>
 </LinearLayout>
