@@ -25,10 +25,16 @@ public class PlaybackKeepAliveService extends Service {
     private static final String ACTION_PAUSE = "com.skystream.ssmusic.PAUSE";
     private static final String ACTION_NEXT = "com.skystream.ssmusic.NEXT";
     private static final String ACTION_PREVIOUS = "com.skystream.ssmusic.PREVIOUS";
+    private static final String ACTION_STOP = "com.skystream.ssmusic.STOP";
     static final String ACTION_SYNC_PLAYBACK_STATE = "com.skystream.ssmusic.SYNC_PLAYBACK_STATE";
     static final String EXTRA_SYNC_PLAYING = "sync_playing";
     static final String EXTRA_SYNC_POSITION_MS = "sync_position_ms";
     static final String EXTRA_SYNC_DURATION_MS = "sync_duration_ms";
+    static final String EXTRA_SYNC_START_TOKEN = "sync_start_token";
+    private static final int REQUEST_PREVIOUS = 1;
+    private static final int REQUEST_TOGGLE_PLAYBACK = 2;
+    private static final int REQUEST_NEXT = 3;
+    private static final int REQUEST_STOP = 4;
     // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
     // renewed on every onStartCommand call while playback keeps the service alive.
     private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
@@ -38,6 +44,7 @@ public class PlaybackKeepAliveService extends Service {
     private boolean playing = true;
     private long positionMs;
     private long durationMs;
+    private long startToken;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -52,7 +59,18 @@ public class PlaybackKeepAliveService extends Service {
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
-            acquireWakeLock();
+            // The notification stays up while paused so transport buttons keep working,
+            // but the wake lock is only needed while audio is actually playing.
+            if (playing) {
+                acquireWakeLock();
+            } else {
+                releaseWakeLock();
+            }
+            // startForeground must run first: a start delivered by the system still requires it
+            // before the service may go away.
+            if (ACTION_STOP.equals(intent == null ? null : intent.getAction())) {
+                stopPlayback();
+            }
         } catch (RuntimeException e) {
             stopSelf();
             return START_NOT_STICKY;
@@ -60,8 +78,23 @@ public class PlaybackKeepAliveService extends Service {
         return START_NOT_STICKY;
     }
 
+    private void stopPlayback() {
+        releaseWakeLock();
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
+        stopSelf();
+    }
+
     @Override
     public void onDestroy() {
+        // Let the activity know the notification is gone so it stops syncing state to a dead service.
+        handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED, 0L, startToken);
         releaseWakeLock();
         if (mediaSession != null) {
             mediaSession.release();
@@ -111,21 +144,22 @@ public class PlaybackKeepAliveService extends Service {
                 .setContentIntent(pendingIntent)
                 .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setOngoing(true);
+                .setDeleteIntent(serviceIntent(ACTION_STOP, REQUEST_STOP))
+                .setOngoing(playing);
         builder.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_previous,
                 getString(R.string.playback_previous),
-                serviceIntent(ACTION_PREVIOUS, 1))
+                serviceIntent(ACTION_PREVIOUS, REQUEST_PREVIOUS))
                 .build());
         builder.addAction(new Notification.Action.Builder(
                 playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
                 playing ? getString(R.string.playback_pause) : getString(R.string.playback_play),
-                serviceIntent(ACTION_TOGGLE_PLAYBACK, 2))
+                serviceIntent(ACTION_TOGGLE_PLAYBACK, REQUEST_TOGGLE_PLAYBACK))
                 .build());
         builder.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_next,
                 getString(R.string.playback_next),
-                serviceIntent(ACTION_NEXT, 3))
+                serviceIntent(ACTION_NEXT, REQUEST_NEXT))
                 .build());
         if (mediaSession != null) {
             builder.setStyle(new Notification.MediaStyle()
@@ -178,8 +212,10 @@ public class PlaybackKeepAliveService extends Service {
         String action = intent == null ? null : intent.getAction();
         if (ACTION_PLAY.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
+            setPlaying(true, notify);
         } else if (ACTION_PAUSE.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
+            setPlaying(false, notify);
         } else if (ACTION_NEXT.equals(action)) {
             handleMediaCommand(MainActivity.MEDIA_COMMAND_NEXT);
         } else if (ACTION_PREVIOUS.equals(action)) {
@@ -187,7 +223,12 @@ public class PlaybackKeepAliveService extends Service {
         } else if (ACTION_TOGGLE_PLAYBACK.equals(action)) {
             int command = playing ? MainActivity.MEDIA_COMMAND_PAUSE : MainActivity.MEDIA_COMMAND_PLAY;
             handleMediaCommand(command);
+            setPlaying(!playing, notify);
+        } else if (ACTION_STOP.equals(action)) {
+            handleMediaCommand(MainActivity.MEDIA_COMMAND_STOP);
+            setPlaying(false, notify);
         } else if (ACTION_SYNC_PLAYBACK_STATE.equals(action) && intent != null) {
+            startToken = Math.max(startToken, intent.getLongExtra(EXTRA_SYNC_START_TOKEN, startToken));
             positionMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_POSITION_MS, positionMs));
             durationMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_DURATION_MS, durationMs));
             updateMediaMetadata();
@@ -214,9 +255,14 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private void handleMediaCommand(int command, long positionMs) {
+        handleMediaCommand(command, positionMs, startToken);
+    }
+
+    private void handleMediaCommand(int command, long positionMs, long token) {
         Intent intent = new Intent(MainActivity.ACTION_MEDIA_COMMAND);
         intent.setPackage(getPackageName());
         intent.putExtra(MainActivity.EXTRA_MEDIA_COMMAND, command);
+        intent.putExtra(MainActivity.EXTRA_MEDIA_START_TOKEN, token);
         if (command == MainActivity.MEDIA_COMMAND_SEEK) {
             intent.putExtra(MainActivity.EXTRA_MEDIA_POSITION_MS, positionMs);
         }
