@@ -63,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
     static final int MEDIA_COMMAND_STOP = 6;
     static final int MEDIA_COMMAND_SERVICE_STOPPED = 7;
     static final String EXTRA_MEDIA_POSITION_MS = "media_position_ms";
+    static final String EXTRA_MEDIA_START_TOKEN = "media_start_token";
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
@@ -189,6 +190,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean playbackBridgeEnabled;
     private boolean mediaCommandReceiverRegistered;
     private boolean keepAliveServiceRunning;
+    private long keepAliveStartToken;
     private volatile long suppressAutoResumeUntilElapsedMs;
     private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionUrl;
@@ -204,7 +206,8 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             applyMediaCommand(intent.getIntExtra(EXTRA_MEDIA_COMMAND, MEDIA_COMMAND_TOGGLE),
-                    intent.getLongExtra(EXTRA_MEDIA_POSITION_MS, 0L));
+                    intent.getLongExtra(EXTRA_MEDIA_POSITION_MS, 0L),
+                    intent.getLongExtra(EXTRA_MEDIA_START_TOKEN, 0L));
         }
     };
 
@@ -549,6 +552,8 @@ public class MainActivity extends AppCompatActivity {
                 (long) (lastReportedPositionSeconds * 1000f));
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_DURATION_MS,
                 lastPlaybackDurationMs);
+        serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_START_TOKEN,
+                ++keepAliveStartToken);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -640,9 +645,12 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(script, null);
     }
 
-    private void applyMediaCommand(int command, long positionMs) {
+    private void applyMediaCommand(int command, long positionMs, long startToken) {
         if (command == MEDIA_COMMAND_SERVICE_STOPPED) {
-            keepAliveServiceRunning = false;
+            // Ignore a stale notice from an older service instance that a newer start replaced.
+            if (startToken >= keepAliveStartToken) {
+                keepAliveServiceRunning = false;
+            }
             return;
         }
         if (command == MEDIA_COMMAND_STOP) {
