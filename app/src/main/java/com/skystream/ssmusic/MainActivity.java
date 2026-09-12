@@ -32,6 +32,7 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
@@ -108,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
         requestAppPermissions();
 
         String target = urlFromIntent(getIntent());
-        if (savedInstanceState != null) {
+        if (savedInstanceState != null && target == null) {
             webView.restoreState(savedInstanceState);
         } else {
             webView.loadUrl(target == null ? Preferences.homeUrl() : target);
@@ -321,7 +322,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean isTrustedPermissionOrigin(String origin) {
-        String host = Urls.hostOf(origin.toLowerCase());
+        if (origin == null) {
+            return false;
+        }
+        String host = Urls.hostOf(origin.toLowerCase(Locale.US));
         return "music.youtube.com".equals(host) || "accounts.google.com".equals(host);
     }
 
