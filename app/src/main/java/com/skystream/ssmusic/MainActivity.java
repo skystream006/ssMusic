@@ -471,12 +471,11 @@ public class MainActivity extends AppCompatActivity {
         public void setPlaying(boolean playing) {
             playbackActive = playing;
             runOnUiThread(() -> {
-                Intent serviceIntent = new Intent(MainActivity.this,
-                        PlaybackKeepAliveService.class);
                 if (playing) {
                     startPlaybackKeepAliveService();
                 } else {
-                    stopService(serviceIntent);
+                    stopService(new Intent(MainActivity.this,
+                            PlaybackKeepAliveService.class));
                 }
             });
         }

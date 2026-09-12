@@ -95,17 +95,19 @@ public class PlaybackKeepAliveService extends Service {
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
-        return builder
+        builder
                 .setSmallIcon(R.drawable.ic_launcher)
                 .setContentTitle(getString(R.string.playback_notification_title))
                 .setContentText(getString(R.string.playback_notification_text))
                 .setContentIntent(pendingIntent)
                 .setCategory(Notification.CATEGORY_TRANSPORT)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setStyle(new Notification.MediaStyle()
-                        .setMediaSession(mediaSession.getSessionToken()))
-                .setOngoing(true)
-                .build();
+                .setOngoing(true);
+        if (mediaSession != null) {
+            builder.setStyle(new Notification.MediaStyle()
+                    .setMediaSession(mediaSession.getSessionToken()));
+        }
+        return builder.build();
     }
 
     private void activateMediaSession() {
