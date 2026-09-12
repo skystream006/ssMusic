@@ -241,6 +241,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
+        persistPlaybackPosition(webView.getUrl(), lastReportedPositionSeconds);
         capturePlaybackPosition();
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
@@ -715,7 +716,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (playbackActive
                         && (Float.isNaN(lastServicePositionSeconds)
-                        || Math.abs(lastReportedPositionSeconds - lastServicePositionSeconds) >= 1f)) {
+                        || Math.abs(lastReportedPositionSeconds - lastServicePositionSeconds) >= 5f)) {
                     lastServicePositionSeconds = lastReportedPositionSeconds;
                     startPlaybackKeepAliveService(Boolean.TRUE);
                 }

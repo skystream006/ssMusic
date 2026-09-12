@@ -163,6 +163,8 @@ public class PlaybackKeepAliveService extends Service {
 
                 @Override
                 public void onSeekTo(long position) {
+                    positionMs = Math.max(0L, position);
+                    mediaSession.setPlaybackState(playbackStateForCurrentState());
                     handleMediaCommand(MainActivity.MEDIA_COMMAND_SEEK, position);
                 }
             });
@@ -245,7 +247,8 @@ public class PlaybackKeepAliveService extends Service {
                         | PlaybackState.ACTION_SEEK_TO)
                 .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
                         positionMs,
-                        playing ? 1f : 0f)
+                        playing ? 1f : 0f,
+                        android.os.SystemClock.elapsedRealtime())
                 .build();
     }
 
