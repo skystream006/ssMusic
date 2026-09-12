@@ -80,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
+    private static final long POSITION_LOG_INTERVAL_MS = 30000L;
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     // Pick likely main media in priority order: paused with progress, paused fallback, then any non-ended node.
     private static final String PICK_MEDIA_NODE_HELPER =
@@ -244,6 +245,7 @@ public class MainActivity extends AppCompatActivity {
     private float lastReportedPositionSeconds;
     private float lastServicePositionSeconds = Float.NaN;
     private long lastPlaybackDurationMs;
+    private volatile long lastPositionLogAtElapsedMs;
     private String currentTrackTitle;
     private String currentTrackArtist;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
@@ -897,7 +899,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void setPosition(String url, double seconds, double duration) {
-            Logger.debug(TAG, "Bridge position update: " + seconds + "s of " + duration + "s");
+            logPositionUpdate(seconds, duration);
             runOnUiThread(() -> {
                 persistPlaybackPosition(url, seconds);
                 String normalized = SiteScope.normalizeInAppUrl(url);
@@ -943,6 +945,19 @@ public class MainActivity extends AppCompatActivity {
         public boolean shouldAutoResume() {
             return SystemClock.elapsedRealtime() >= suppressAutoResumeUntilElapsedMs;
         }
+    }
+
+    /** Position reports arrive continuously, so they are only logged periodically. */
+    private void logPositionUpdate(double seconds, double duration) {
+        if (!Logger.isEnabled()) {
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastPositionLogAtElapsedMs < POSITION_LOG_INTERVAL_MS) {
+            return;
+        }
+        lastPositionLogAtElapsedMs = now;
+        Logger.debug(TAG, "Bridge position update: " + seconds + "s of " + duration + "s");
     }
 
     private String sanitizeMetadata(String value) {

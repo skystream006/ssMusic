@@ -116,10 +116,24 @@ public final class Logger {
         if (target == null) {
             return;
         }
-        synchronized (FILE_LOCK) {
-            File directory = new File(target.getFilesDir(), LOG_DIRECTORY);
-            deleteQuietly(new File(directory, LOG_FILE_NAME));
-            deleteQuietly(new File(directory, LOG_BACKUP_FILE_NAME));
+        File directory = new File(target.getFilesDir(), LOG_DIRECTORY);
+        Runnable delete = () -> {
+            synchronized (FILE_LOCK) {
+                deleteQuietly(new File(directory, LOG_FILE_NAME));
+                deleteQuietly(new File(directory, LOG_BACKUP_FILE_NAME));
+            }
+        };
+        // Delete on the writer thread so entries queued before the clear cannot be written
+        // into the new file afterwards.
+        ExecutorService executor = enabled ? ensureWriter() : writer;
+        if (executor == null) {
+            delete.run();
+            return;
+        }
+        try {
+            executor.execute(delete);
+        } catch (RuntimeException e) {
+            delete.run();
         }
     }
 
