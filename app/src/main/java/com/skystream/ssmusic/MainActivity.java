@@ -67,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
+    private static final int MAX_METADATA_LENGTH = 200;
 
     static final String AD_HIDING_SCRIPT =
             "(function(){"
@@ -166,7 +167,8 @@ public class MainActivity extends AppCompatActivity {
                     + "var player=document.querySelector('ytmusic-player-bar');"
                     + "function text(selector){var element=(player||document).querySelector(selector);"
                     + "return element&&element.textContent?element.textContent.trim():'';}"
-                    + "var title=text('.title')||text('yt-formatted-string.title')||document.title;"
+                    + "var title=text('.title');"
+                    + "if(!title){title=(document.title||'').replace(/\\s*-\\s*YouTube Music\\s*$/i,'');}"
                     + "var artist=text('.byline')||text('.subtitle');"
                     + "window.ssmusicPlayback.setMetadata(title,artist);"
                     + "window.ssmusicPlayback.setPlaying(playing);"
@@ -812,7 +814,8 @@ public class MainActivity extends AppCompatActivity {
             return "";
         }
         String normalized = value.trim().replaceAll("\\s+", " ");
-        return normalized.length() <= 200 ? normalized : normalized.substring(0, 200);
+        return normalized.length() <= MAX_METADATA_LENGTH
+                ? normalized : normalized.substring(0, MAX_METADATA_LENGTH);
     }
 
     private boolean isPlaybackLikelyActive() {

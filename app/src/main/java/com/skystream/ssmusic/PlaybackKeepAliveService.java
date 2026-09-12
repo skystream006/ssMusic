@@ -233,8 +233,12 @@ public class PlaybackKeepAliveService extends Service {
             startToken = Math.max(startToken, intent.getLongExtra(EXTRA_SYNC_START_TOKEN, startToken));
             positionMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_POSITION_MS, positionMs));
             durationMs = Math.max(0L, intent.getLongExtra(EXTRA_SYNC_DURATION_MS, durationMs));
-            title = intent.getStringExtra(EXTRA_SYNC_TITLE);
-            artist = intent.getStringExtra(EXTRA_SYNC_ARTIST);
+            if (intent.hasExtra(EXTRA_SYNC_TITLE)) {
+                title = intent.getStringExtra(EXTRA_SYNC_TITLE);
+            }
+            if (intent.hasExtra(EXTRA_SYNC_ARTIST)) {
+                artist = intent.getStringExtra(EXTRA_SYNC_ARTIST);
+            }
             updateMediaMetadata();
             setPlaying(intent.hasExtra(EXTRA_SYNC_PLAYING)
                     ? intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing) : playing, notify);
