@@ -35,6 +35,13 @@ public class SiteScopeTest {
     }
 
     @Test
+    public void identifiesPlaybackUrls() {
+        assertTrue(SiteScope.isPlaybackUrl("https://music.youtube.com/watch?v=abc"));
+        assertFalse(SiteScope.isPlaybackUrl("https://accounts.google.com/signin"));
+        assertFalse(SiteScope.isPlaybackUrl("https://www.youtube.com/watch?v=abc"));
+    }
+
+    @Test
     public void blocksOutOfScopeHosts() {
         assertFalse(SiteScope.isInAppUrl("https://example.com/"));
         assertFalse(SiteScope.isInAppUrl("https://www.google.com/search?q=music"));

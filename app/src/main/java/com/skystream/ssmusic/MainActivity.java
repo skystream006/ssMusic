@@ -116,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
                     + "document.addEventListener('play',report,true);"
                     + "document.addEventListener('pause',report,true);"
                     + "document.addEventListener('ended',report,true);"
-                    + "setInterval(report,1000);"
+                    + "setInterval(report,5000);"
                     + "report();"
                     + "})()";
 
@@ -126,6 +126,7 @@ public class MainActivity extends AppCompatActivity {
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
     private boolean usingDefaultUserAgent;
+    private boolean playbackBridgeEnabled;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -223,7 +224,6 @@ public class MainActivity extends AppCompatActivity {
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new MusicWebViewClient());
-        webView.addJavascriptInterface(new PlaybackBridge(), "ssmusicPlayback");
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
@@ -384,22 +384,31 @@ public class MainActivity extends AppCompatActivity {
         return "music.youtube.com".equals(host) || "accounts.google.com".equals(host);
     }
 
-    private void injectAdBlockingScripts(WebView view) {
+    private void injectPageScripts(WebView view) {
+        if (!SiteScope.isPlaybackUrl(view.getUrl())) {
+            return;
+        }
         view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
     }
 
     private void loadUrl(String url) {
-        applyUserAgentForUrl(url);
+        prepareForUrl(url);
         webView.loadUrl(url);
     }
 
-    private boolean applyUserAgentForUrl(String url) {
+    private void prepareForUrl(String url) {
+        playbackActive = false;
+        setPlaybackBridgeEnabled(SiteScope.isPlaybackUrl(url));
+        applyUserAgentForUrl(url);
+    }
+
+    private void applyUserAgentForUrl(String url) {
         WebSettings settings = webView.getSettings();
         boolean shouldUseDefault = SiteScope.isGoogleAccountUrl(url);
         if (shouldUseDefault == usingDefaultUserAgent) {
-            return false;
+            return;
         }
         if (shouldUseDefault) {
             settings.setUserAgentString(null);
@@ -407,7 +416,18 @@ public class MainActivity extends AppCompatActivity {
             settings.setUserAgentString(Preferences.userAgent(isDesktopMode()));
         }
         usingDefaultUserAgent = shouldUseDefault;
-        return true;
+    }
+
+    private void setPlaybackBridgeEnabled(boolean enabled) {
+        if (enabled == playbackBridgeEnabled) {
+            return;
+        }
+        if (enabled) {
+            webView.addJavascriptInterface(new PlaybackBridge(), "ssmusicPlayback");
+        } else {
+            webView.removeJavascriptInterface("ssmusicPlayback");
+        }
+        playbackBridgeEnabled = enabled;
     }
 
     private void startPlaybackKeepAliveService() {
@@ -452,9 +472,15 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            playbackActive = false;
+        }
+
+        @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
-            injectAdBlockingScripts(view);
+            injectPageScripts(view);
             settingsButton.setVisibility(View.VISIBLE);
         }
 
@@ -463,11 +489,13 @@ public class MainActivity extends AppCompatActivity {
             if (normalized == null) {
                 return true;
             }
-            boolean userAgentChanged = applyUserAgentForUrl(normalized);
-            if (!normalized.equals(url) || userAgentChanged) {
+            boolean needsReload = !normalized.equals(url)
+                    || SiteScope.isGoogleAccountUrl(normalized) != usingDefaultUserAgent;
+            if (needsReload) {
                 loadUrl(normalized);
                 return true;
             }
+            prepareForUrl(normalized);
             return false;
         }
 

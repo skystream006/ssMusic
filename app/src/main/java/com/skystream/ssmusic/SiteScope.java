@@ -54,6 +54,14 @@ public final class SiteScope {
         return false;
     }
 
+    public static boolean isPlaybackUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        String host = Urls.hostOf(url.toLowerCase(Locale.US));
+        return "music.youtube.com".equals(host);
+    }
+
     public static String normalizeInAppUrl(String url) {
         if (url == null) {
             return null;
