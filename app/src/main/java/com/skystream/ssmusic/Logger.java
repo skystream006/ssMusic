@@ -76,6 +76,7 @@ public final class Logger {
         } else if (!value && enabled) {
             event("Logger", "Logging disabled");
             enabled = false;
+            shutdownWriter();
         }
     }
 
@@ -196,6 +197,17 @@ public final class Logger {
                 });
             }
             return writer;
+        }
+    }
+
+    private static void shutdownWriter() {
+        ExecutorService executor;
+        synchronized (Logger.class) {
+            executor = writer;
+            writer = null;
+        }
+        if (executor != null) {
+            executor.shutdown();
         }
     }
 

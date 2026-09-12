@@ -20,6 +20,14 @@ public final class LogFormat {
     private static final int MAX_MESSAGE_LENGTH = 4000;
     private static final int MAX_STACK_FRAMES = 60;
     private static final String PACKAGE_PREFIX = "com.skystream.ssmusic.";
+    // SimpleDateFormat is not thread safe, so each logging thread keeps its own instance.
+    private static final ThreadLocal<SimpleDateFormat> TIMESTAMP_FORMAT =
+            new ThreadLocal<SimpleDateFormat>() {
+                @Override
+                protected SimpleDateFormat initialValue() {
+                    return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US);
+                }
+            };
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final String LOGGER_CLASS = PACKAGE_PREFIX + "Logger";
     private static final String FORMAT_CLASS = PACKAGE_PREFIX + "LogFormat";
@@ -28,8 +36,9 @@ public final class LogFormat {
     }
 
     /**
-     * Builds a single log entry. A stack trace is always recorded: the throwable's trace when
-     * one is supplied, otherwise the caller's own trace.
+     * Builds a single log entry. Every entry names the calling code; a full stack trace is
+     * recorded for the supplied throwable, and for warnings and errors the caller's own trace
+     * is recorded when no throwable is available.
      */
     public static String entry(long timeMillis, String level, String tag, String message,
             Throwable throwable, StackTraceElement[] callerTrace) {
@@ -46,7 +55,9 @@ public final class LogFormat {
             line.append(" (at ").append(caller).append(')');
         }
         line.append('\n');
-        String trace = throwable != null ? stackTraceOf(throwable) : stackTraceOf(callerTrace);
+        String trace = throwable != null
+                ? stackTraceOf(throwable)
+                : (tracesCallerFor(level) ? stackTraceOf(callerTrace) : null);
         if (trace != null && !trace.isEmpty()) {
             line.append(trace);
             if (!trace.endsWith("\n")) {
@@ -56,8 +67,13 @@ public final class LogFormat {
         return line.toString();
     }
 
+    /** Levels whose entries carry the caller's stack trace even without a throwable. */
+    public static boolean tracesCallerFor(String level) {
+        return "W".equals(level) || "E".equals(level);
+    }
+
     public static String timestamp(long timeMillis) {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US);
+        SimpleDateFormat format = TIMESTAMP_FORMAT.get();
         format.setTimeZone(TimeZone.getDefault());
         return format.format(new Date(timeMillis));
     }

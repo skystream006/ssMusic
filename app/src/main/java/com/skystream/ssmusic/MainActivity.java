@@ -44,6 +44,7 @@ import androidx.webkit.WebViewFeature;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +55,7 @@ import java.util.regex.Pattern;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-    private static final String PREFS_NAME = "ssmusic_prefs";
+    private static final String PREFS_NAME = Logger.PREFS_NAME;
     private static final String KEY_THEME = "theme";
     private static final String KEY_DESKTOP_MODE = "desktop_mode";
     private static final String KEY_LAST_URL = "last_url";
@@ -354,8 +355,8 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         Logger.event(TAG, "Permission result for request " + requestCode + ": "
-                + java.util.Arrays.toString(permissions)
-                + " -> " + java.util.Arrays.toString(grantResults));
+                + Arrays.toString(permissions)
+                + " -> " + Arrays.toString(grantResults));
         if (requestCode == REQUEST_WEB_PERMISSIONS && pendingPermissionRequest != null) {
             PermissionRequest request = pendingPermissionRequest;
             pendingPermissionRequest = null;

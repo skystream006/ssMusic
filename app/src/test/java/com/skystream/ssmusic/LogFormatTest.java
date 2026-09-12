@@ -1,6 +1,7 @@
 package com.skystream.ssmusic;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -24,11 +25,20 @@ public class LogFormatTest {
     }
 
     @Test
-    public void entryRecordsCallerStackTraceWhenNoThrowable() {
+    public void entryRecordsCallerStackTraceForWarnings() {
+        String entry = LogFormat.entry(0L, "W", "Nav", "home",
+                null, new Throwable().getStackTrace());
+        assertTrue(entry.contains("(at LogFormatTest.entryRecordsCallerStackTraceForWarnings:"));
+        assertTrue(entry.contains("\tat com.skystream.ssmusic.LogFormatTest"));
+    }
+
+    @Test
+    public void entryKeepsCallerLocationWithoutFullTraceForRoutineEvents() {
         String entry = LogFormat.entry(0L, "I", "Nav", "home",
                 null, new Throwable().getStackTrace());
-        assertTrue(entry.contains("(at LogFormatTest.entryRecordsCallerStackTraceWhenNoThrowable:"));
-        assertTrue(entry.contains("\tat com.skystream.ssmusic.LogFormatTest"));
+        assertTrue(entry.contains(
+                "(at LogFormatTest.entryKeepsCallerLocationWithoutFullTraceForRoutineEvents:"));
+        assertFalse(entry.contains("\tat "));
     }
 
     @Test
