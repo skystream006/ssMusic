@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
@@ -103,12 +104,28 @@ public class MainActivity extends AppCompatActivity {
                     + "function stop(event){event.stopImmediatePropagation();}"
                     + "document.addEventListener('visibilitychange',stop,true);"
                     + "document.addEventListener('webkitvisibilitychange',stop,true);"
+                    + "function report(){"
+                    + "var nodes=document.querySelectorAll('audio,video');"
+                    + "var playing=false;"
+                    + "for(var i=0;i<nodes.length;i++){"
+                    + "var node=nodes[i];"
+                    + "if(!node.paused&&!node.ended&&node.readyState>2){playing=true;break;}"
+                    + "}"
+                    + "if(window.ssmusicPlayback){window.ssmusicPlayback.setPlaying(playing);}"
+                    + "}"
+                    + "document.addEventListener('play',report,true);"
+                    + "document.addEventListener('pause',report,true);"
+                    + "document.addEventListener('ended',report,true);"
+                    + "setInterval(report,1000);"
+                    + "report();"
                     + "})()";
 
     private WebView webView;
     private ImageButton settingsButton;
     private SharedPreferences preferences;
     private PermissionRequest pendingPermissionRequest;
+    private volatile boolean playbackActive;
+    private boolean usingDefaultUserAgent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        if (!isFinishing()) {
+        if (!isFinishing() && playbackActive) {
             startPlaybackKeepAliveService();
         }
     }
@@ -206,6 +223,7 @@ public class MainActivity extends AppCompatActivity {
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new MusicWebViewClient());
+        webView.addJavascriptInterface(new PlaybackBridge(), "ssmusicPlayback");
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
@@ -377,21 +395,38 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl(url);
     }
 
-    private void applyUserAgentForUrl(String url) {
+    private boolean applyUserAgentForUrl(String url) {
         WebSettings settings = webView.getSettings();
-        if (SiteScope.isGoogleAccountUrl(url)) {
+        boolean shouldUseDefault = SiteScope.isGoogleAccountUrl(url);
+        if (shouldUseDefault == usingDefaultUserAgent) {
+            return false;
+        }
+        if (shouldUseDefault) {
             settings.setUserAgentString(null);
         } else {
             settings.setUserAgentString(Preferences.userAgent(isDesktopMode()));
         }
+        usingDefaultUserAgent = shouldUseDefault;
+        return true;
     }
 
     private void startPlaybackKeepAliveService() {
         Intent serviceIntent = new Intent(this, PlaybackKeepAliveService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (RuntimeException e) {
+            stopService(serviceIntent);
+        }
+    }
+
+    private final class PlaybackBridge {
+        @JavascriptInterface
+        public void setPlaying(boolean playing) {
+            playbackActive = playing;
         }
     }
 
@@ -428,11 +463,11 @@ public class MainActivity extends AppCompatActivity {
             if (normalized == null) {
                 return true;
             }
-            if (!normalized.equals(url)) {
+            boolean userAgentChanged = applyUserAgentForUrl(normalized);
+            if (!normalized.equals(url) || userAgentChanged) {
                 loadUrl(normalized);
                 return true;
             }
-            applyUserAgentForUrl(normalized);
             return false;
         }
 
