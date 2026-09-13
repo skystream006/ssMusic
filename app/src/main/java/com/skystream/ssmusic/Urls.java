@@ -104,19 +104,27 @@ final class Urls {
     }
 
     static boolean isAllowedHttpsThumbnailUrl(String value) {
-        if (value == null) {
-            return false;
-        }
-        try {
-            return isAllowedHttpsThumbnailUrl(new URL(value));
-        } catch (MalformedURLException e) {
-            return false;
-        }
+        return sanitizeHttpsThumbnailUrl(value, Integer.MAX_VALUE) != null;
     }
 
     static boolean isAllowedHttpsThumbnailUrl(URL url) {
         return url != null
                 && "https".equalsIgnoreCase(url.getProtocol())
                 && isAllowedThumbnailHost(url.getHost());
+    }
+
+    static String sanitizeHttpsThumbnailUrl(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty() || normalized.length() > maxLength) {
+            return null;
+        }
+        try {
+            return isAllowedHttpsThumbnailUrl(new URL(normalized)) ? normalized : null;
+        } catch (MalformedURLException e) {
+            return null;
+        }
     }
 }

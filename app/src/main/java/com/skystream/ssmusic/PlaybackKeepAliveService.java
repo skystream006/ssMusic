@@ -54,6 +54,7 @@ public class PlaybackKeepAliveService extends Service {
     private static final int REQUEST_STOP = 4;
     private static final int MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024;
     private static final int MAX_THUMBNAIL_SIZE_PX = 512;
+    private static final int MAX_THUMBNAIL_URL_LENGTH = 2000;
     private static final int THUMBNAIL_TIMEOUT_MS = 5000;
     private static final int MAX_THUMBNAIL_REDIRECTS = 3;
     // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
@@ -74,13 +75,16 @@ public class PlaybackKeepAliveService extends Service {
     private int thumbnailRequestVersion;
     private boolean destroyed;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final ExecutorService thumbnailExecutor = Executors.newSingleThreadExecutor();
+    private ExecutorService thumbnailExecutor;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Logger.init(this);
         Logger.event(TAG, "onStartCommand, action: " + (intent == null ? null : intent.getAction()));
         destroyed = false;
+        if (thumbnailExecutor == null || thumbnailExecutor.isShutdown()) {
+            thumbnailExecutor = Executors.newSingleThreadExecutor();
+        }
         createNotificationChannel();
         try {
             activateMediaSession();
@@ -143,7 +147,10 @@ public class PlaybackKeepAliveService extends Service {
         // Let the activity know the notification is gone so it stops syncing state to a dead service.
         handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED, 0L, startToken);
         releaseWakeLock();
-        thumbnailExecutor.shutdownNow();
+        if (thumbnailExecutor != null) {
+            thumbnailExecutor.shutdownNow();
+            thumbnailExecutor = null;
+        }
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;
@@ -392,14 +399,7 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private String sanitizeThumbnailUrl(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.isEmpty()) {
-            return null;
-        }
-        return Urls.isAllowedHttpsThumbnailUrl(normalized) ? normalized : null;
+        return Urls.sanitizeHttpsThumbnailUrl(value, MAX_THUMBNAIL_URL_LENGTH);
     }
 
     private void loadThumbnailAsync(String url, int requestVersion) {

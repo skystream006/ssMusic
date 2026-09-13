@@ -1057,14 +1057,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String sanitizeThumbnailUrl(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.isEmpty() || normalized.length() > MAX_THUMBNAIL_URL_LENGTH) {
-            return null;
-        }
-        return Urls.isAllowedHttpsThumbnailUrl(normalized) ? normalized : null;
+        return Urls.sanitizeHttpsThumbnailUrl(value, MAX_THUMBNAIL_URL_LENGTH);
     }
 
     private boolean isPlaybackLikelyActive() {

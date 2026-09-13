@@ -49,4 +49,11 @@ public class UrlsTest {
         assertFalse(Urls.isAllowedHttpsThumbnailUrl("https://ytimg.com.evil.example/image.jpg"));
         assertFalse(Urls.isAllowedHttpsThumbnailUrl("not a url"));
     }
+
+    @Test
+    public void sanitizeHttpsThumbnailUrlTrimsAndEnforcesLength() {
+        assertEquals("https://i.ytimg.com/image.jpg",
+                Urls.sanitizeHttpsThumbnailUrl(" https://i.ytimg.com/image.jpg ", 100));
+        assertNull(Urls.sanitizeHttpsThumbnailUrl("https://i.ytimg.com/image.jpg", 10));
+    }
 }
