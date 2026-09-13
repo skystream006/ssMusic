@@ -53,6 +53,10 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("setVideoThumbnailDefault"));
         assertTrue(script.contains("__ssmusicSetVideoThumbnailDefault"));
         assertTrue(script.contains("observer=new MutationObserver(function(){scheduleApply();})"));
+        assertTrue(script.contains("transform:translateX(-50%)"));
+        assertTrue(script.contains("cursor:pointer"));
+        assertTrue(script.contains("node.style.setProperty('opacity','0','important')"));
+        assertTrue(script.contains("hidden.style.removeProperty('opacity')"));
         assertFalse(script.contains("setInterval("));
     }
 
