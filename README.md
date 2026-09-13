@@ -4,6 +4,7 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 
 - mobile or desktop user agent mode
 - system, light, or dark app theme
+- video display default for showing the song thumbnail instead of available video
 - back, forward, refresh, and home navigation
 - optional debug logging
 
