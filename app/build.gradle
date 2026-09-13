@@ -14,8 +14,8 @@ android {
         applicationId "com.skystream.ssmusic"
         minSdk 21
         targetSdk 34
-        versionCode 19
-        versionName "0.01.19"
+        versionCode 20
+        versionName "0.01.20"
     }
 
     signingConfigs {
