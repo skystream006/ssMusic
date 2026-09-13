@@ -98,6 +98,21 @@
         android:orientation="vertical"
         android:visibility="gone">
 
+        <Switch
+            android:id="@+id/kid_mode_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:text="@string/kid_mode"
+            tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/kid_mode_summary"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

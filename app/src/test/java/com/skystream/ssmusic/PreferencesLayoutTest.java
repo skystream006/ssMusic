@@ -39,7 +39,7 @@ public class PreferencesLayoutTest {
         assertEquals("gone", advanced.getAttributeNS(ANDROID, "visibility"));
         assertSame(advanced.getParentNode(), findById(layout, "advanced_button").getParentNode());
         for (String id : new String[]{"open_supported_links_button", "logging_switch",
-                "stats_for_nerds_switch", "log_actions"}) {
+                "stats_for_nerds_switch", "log_actions", "kid_mode_switch"}) {
             assertSame(advanced, findById(layout, id).getParentNode());
         }
         for (String id : new String[]{"video_thumbnail_switch", "navigation_bar"}) {
