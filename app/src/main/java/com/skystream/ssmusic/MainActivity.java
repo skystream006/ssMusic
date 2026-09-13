@@ -968,6 +968,7 @@ public class MainActivity extends AppCompatActivity {
         loggingSwitch.setOnCheckedChangeListener(
                 (button, checked) -> Logger.setEnabled(MainActivity.this, checked));
         content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
+        content.findViewById(R.id.view_log_button).setOnClickListener(v -> LogViewer.show(this));
         content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
 
         Switch statsSwitch = content.findViewById(R.id.stats_for_nerds_switch);

@@ -32,6 +32,9 @@
     <string name="enable_logging_summary">Record app activity and stack traces to a log file for debugging.</string>
     <string name="enable_logging_accessibility">Enable logging. Records app activity and stack traces to a log file for debugging.</string>
     <string name="share_log">Share log</string>
+    <string name="view_log">View log</string>
+    <string name="log_loading">Loading log…</string>
+    <string name="log_read_failed">Unable to read the log file.</string>
     <string name="clear_log">Clear log</string>
     <string name="log_empty">No log entries recorded yet.</string>
     <string name="log_cleared">Log cleared.</string>
