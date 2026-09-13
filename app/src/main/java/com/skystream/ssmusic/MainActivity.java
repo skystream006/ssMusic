@@ -212,17 +212,45 @@ public class MainActivity extends AppCompatActivity {
                     + "window.ssmusicPlayback.setPlaying(playing);"
                     + "}"
                     + "}"
-                    + "window.__ssmusicForceReport=report;"
-                    + "document.addEventListener('play',report,true);"
-                    + "document.addEventListener('pause',report,true);"
-                    + "document.addEventListener('ended',report,true);"
-                    + "window.addEventListener('pagehide',report);"
-                    + "window.addEventListener('popstate',report);"
-                    + "window.addEventListener('hashchange',report);"
+                    // Several triggers below (history patches, media events) can all fire within
+                    // the same tick, especially right as the app leaves foreground. Coalescing
+                    // them avoids flooding the native bridge with a burst of redundant calls at
+                    // exactly the moment the process is most fragile.
+                    + "var reportTimer=null;"
+                    + "var reportBurstCount=0;"
+                    + "var REPORT_DEBOUNCE_MS=120;"
+                    + "function flushReport(){"
+                    + "reportTimer=null;"
+                    + "var burst=reportBurstCount;"
+                    + "reportBurstCount=0;"
+                    + "if(burst>1&&window.ssmusicPlayback&&window.ssmusicPlayback.logDiagnostic){"
+                    + "window.ssmusicPlayback.logDiagnostic('Coalesced '+burst+' playback report triggers');"
+                    + "}"
+                    + "try{report();}catch(e){"
+                    + "if(window.ssmusicPlayback&&window.ssmusicPlayback.logDiagnostic){"
+                    + "window.ssmusicPlayback.logDiagnostic('report() threw: '+(e&&e.message?e.message:e));"
+                    + "}"
+                    + "}"
+                    + "}"
+                    + "function scheduleReport(){"
+                    + "reportBurstCount++;"
+                    + "if(reportTimer){return;}"
+                    + "reportTimer=setTimeout(flushReport,REPORT_DEBOUNCE_MS);"
+                    + "}"
+                    + "window.__ssmusicForceReport=function(){"
+                    + "if(reportTimer){clearTimeout(reportTimer);reportTimer=null;reportBurstCount=0;}"
+                    + "report();"
+                    + "};"
+                    + "document.addEventListener('play',scheduleReport,true);"
+                    + "document.addEventListener('pause',scheduleReport,true);"
+                    + "document.addEventListener('ended',scheduleReport,true);"
+                    + "window.addEventListener('pagehide',scheduleReport);"
+                    + "window.addEventListener('popstate',scheduleReport);"
+                    + "window.addEventListener('hashchange',scheduleReport);"
                     + "var pushState=history.pushState;"
-                    + "history.pushState=function(){var result=pushState.apply(this,arguments);report();return result;};"
+                    + "history.pushState=function(){var result=pushState.apply(this,arguments);scheduleReport();return result;};"
                     + "var replaceState=history.replaceState;"
-                    + "history.replaceState=function(){var result=replaceState.apply(this,arguments);report();return result;};"
+                    + "history.replaceState=function(){var result=replaceState.apply(this,arguments);scheduleReport();return result;};"
                     + "setInterval(report,5000);"
                     + "report();"
                     + "})()";
@@ -349,6 +377,20 @@ public class MainActivity extends AppCompatActivity {
             stopPlaybackKeepAliveService();
         }
         super.onDestroy();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // Correlates memory-pressure events with any playback drop reported around the same
+        // time, since the OS can reclaim resources from a backgrounded process under pressure.
+        Logger.event(TAG, "onTrimMemory, level: " + level + ", playback active: " + playbackActive);
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        Logger.warn(TAG, "onLowMemory, playback active: " + playbackActive, null);
     }
 
     @Override
@@ -961,6 +1003,11 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean shouldAutoResume() {
             return SystemClock.elapsedRealtime() >= suppressAutoResumeUntilElapsedMs;
+        }
+
+        @JavascriptInterface
+        public void logDiagnostic(String message) {
+            Logger.debug(TAG, "Bridge diagnostic: " + message);
         }
     }
 
