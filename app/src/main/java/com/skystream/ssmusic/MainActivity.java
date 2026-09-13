@@ -504,7 +504,7 @@ public class MainActivity extends AppCompatActivity {
                 + "apply();"
                 + "}"
                 + "function restore(node){"
-                + "if(hiddenOpacity){node.style.setProperty('opacity',hiddenOpacity,hiddenPriority);}"
+                + "if(hiddenOpacity!==''){node.style.setProperty('opacity',hiddenOpacity,hiddenPriority);}"
                 + "else{node.style.removeProperty('opacity');}"
                 + "}"
                 + "function reveal(){"
