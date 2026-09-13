@@ -51,7 +51,8 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("THUMBNAIL_ALT='Song thumbnail'"));
         assertTrue(script.contains("setVideoThumbnailDefault"));
         assertTrue(script.contains("__ssmusicSetVideoThumbnailDefault"));
-        assertTrue(script.contains("new MutationObserver(function(){scheduleApply();})"));
+        assertTrue(script.contains("observer=new MutationObserver(function(){scheduleApply();})"));
+        assertTrue(script.contains("setInterval(scheduleApply,3000)"));
     }
 
     @Test

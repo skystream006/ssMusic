@@ -422,6 +422,11 @@ public class MainActivity extends AppCompatActivity {
                     + "report();"
                     + "})()";
 
+    /**
+     * Injects an in-page control for YouTube Music videos. The script overlays the current song
+     * thumbnail over the video when enabled, renders a toggle button near the player, and exposes
+     * {@code __ssmusicSetVideoThumbnailDefault} for native settings changes.
+     */
     static String videoDisplayScript(boolean showThumbnailByDefault, String showThumbnailLabel,
             String showVideoLabel, String thumbnailAltText) {
         return "(function(){"
@@ -433,6 +438,8 @@ public class MainActivity extends AppCompatActivity {
                 + "var COVER_ID='ssmusic-video-thumbnail-cover';"
                 + "var STYLE_ID='ssmusic-video-display-style';"
                 + "var scheduled=false;"
+                + "var observer=null;"
+                + "var observed=null;"
                 + "var showing=typeof window.__ssmusicVideoThumbnailDefault==='boolean'"
                 + "?window.__ssmusicVideoThumbnailDefault:DEFAULT;"
                 + "window.__ssmusicVideoThumbnailDefault=showing;"
@@ -471,6 +478,14 @@ public class MainActivity extends AppCompatActivity {
                 + "if(root.parentNode!==host){host.appendChild(root);}"
                 + "return root;"
                 + "}"
+                + "function observe(){"
+                + "var target=player()||document.body||document.documentElement;"
+                + "if(observer&&observed===target){return;}"
+                + "if(observer){observer.disconnect();}"
+                + "observed=target;"
+                + "observer=new MutationObserver(function(){scheduleApply();});"
+                + "observer.observe(observed,{childList:true,subtree:true});"
+                + "}"
                 + "function save(value){"
                 + "showing=value;window.__ssmusicVideoThumbnailDefault=value;"
                 + "if(window.ssmusicPlayback&&window.ssmusicPlayback.setVideoThumbnailDefault){"
@@ -480,11 +495,12 @@ public class MainActivity extends AppCompatActivity {
                 + "}"
                 + "function apply(){"
                 + "scheduled=false;"
+                + "if(observer){observer.disconnect();}"
                 + "css();"
                 + "var node=video();"
                 + "var cover=document.getElementById(COVER_ID);"
                 + "var root=document.getElementById(ROOT_ID);"
-                + "if(!node){if(cover){cover.remove();}if(root){root.remove();}return;}"
+                + "if(!node){if(cover){cover.remove();}if(root){root.remove();}observe();return;}"
                 + "var host=player();"
                 + "if(getComputedStyle(host).position==='static'){host.style.setProperty('position','relative','important');}"
                 + "root=ensureRoot(host);"
@@ -501,6 +517,7 @@ public class MainActivity extends AppCompatActivity {
                 + "if(getComputedStyle(videoHost).position==='static'){videoHost.style.setProperty('position','relative','important');}"
                 + "if(cover.parentNode!==videoHost){videoHost.appendChild(cover);}"
                 + "}else if(cover){cover.remove();}"
+                + "observe();"
                 + "}"
                 + "function scheduleApply(){if(scheduled){return;}scheduled=true;setTimeout(apply,100);}"
                 + "window.__ssmusicApplyVideoDisplay=apply;"
@@ -510,8 +527,7 @@ public class MainActivity extends AppCompatActivity {
                 + "document.addEventListener('play',scheduleApply,true);"
                 + "document.addEventListener('loadedmetadata',scheduleApply,true);"
                 + "document.addEventListener('yt-navigate-finish',function(){setTimeout(scheduleApply,300);},true);"
-                + "new MutationObserver(function(){scheduleApply();}).observe(document.documentElement,{childList:true,subtree:true});"
-                + "setInterval(apply,3000);"
+                + "setInterval(scheduleApply,3000);"
                 + "}"
                 + "apply();"
                 + "})()";
@@ -843,6 +859,10 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
+    /**
+     * Persists the video display default. {@code updatePage} is false when the page already owns
+     * the new state, which avoids echoing a page button click back through the JavaScript bridge.
+     */
     private void setShowVideoThumbnailDefault(boolean showThumbnail, boolean updatePage) {
         preferences.edit().putBoolean(KEY_SHOW_VIDEO_THUMBNAIL, showThumbnail).apply();
         if (updatePage && playbackBridgeEnabled) {
