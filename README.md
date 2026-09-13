@@ -56,4 +56,8 @@ The app requests the browser permissions YouTube Music may need, including camer
 ./gradlew test assembleDebug
 ```
 
-GitHub Actions builds APK artifacts with the same version-bump.
+GitHub Actions tests and builds debug APK artifacts using the version committed in
+`app/build.gradle`. Bump both `versionName` and `versionCode` there for each new release.
+Successful builds on `main` publish a GitHub release tagged `v<versionName>` with the
+debug-signed APK and generated release notes. Existing releases are left unchanged;
+pull request builds only upload artifacts.

@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Bump Android version
+      - name: Read Android version
         id: version
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
@@ -42,20 +42,9 @@ jobs:
           if not name_match:
               raise SystemExit("versionName must use xx.yy.zz format, for example 0.01.01")
 
-          version_code = int(code_match.group(1)) + 1
+          version_code = int(code_match.group(1))
           major, minor, patch = map(int, name_match.groups())
-          patch += 1
-          if patch > 99:
-              patch = 0
-              minor += 1
-          if minor > 99:
-              minor = 0
-              major += 1
           version_name = f"{major}.{minor:02d}.{patch:02d}"
-
-          text = re.sub(r"versionCode\s+\d+", f"versionCode {version_code}", text, count=1)
-          text = re.sub(r'versionName\s+"[^"]+"', f'versionName "{version_name}"', text, count=1)
-          build_file.write_text(text)
 
           print(f"version_code={version_code}")
           print(f"version_name={version_name}")
@@ -101,11 +90,20 @@ jobs:
           path: ${{ steps.apk_name.outputs.apk_name }}.apk
           if-no-files-found: error
 
-      - name: Commit version bump
-        if: github.event_name != 'pull_request'
+      - name: Publish GitHub release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          APK_NAME: ${{ steps.apk_name.outputs.apk_name }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle
-          git diff --staged --quiet || git commit -m "Bump version to ${{ steps.version.outputs.version_name }}"
-          git push
+          tag="v${VERSION_NAME}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists; leaving it unchanged."
+            exit 0
+          fi
+          gh release create "$tag" "${APK_NAME}.apk" \
+            --target "$GITHUB_SHA" \
+            --title "ssMusic ${VERSION_NAME}" \
+            --generate-notes
