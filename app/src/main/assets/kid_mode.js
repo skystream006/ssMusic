@@ -14,7 +14,7 @@
     var nativePlay = HTMLMediaElement.prototype.play;
     var SONG_ROWS = 'ytmusic-playlist-shelf-renderer ytmusic-responsive-list-item-renderer';
     var HIDDEN = 'ytmusic-settings-button,#mini-guide,ytmusic-search-box,ytmusic-menu-renderer,#automix';
-    var LOGO = 'ytmusic-logo,.ytmusic-logo,ytmusic-nav-bar .logo,ytmusic-nav-bar #logo';
+    var LOGO = 'ytmusic-logo,.ytmusic-logo,a.logo,ytmusic-nav-bar .logo,ytmusic-nav-bar #logo';
     var NAV_BUTTONS = 'ytmusic-nav-bar button,ytmusic-nav-bar yt-icon-button,ytmusic-nav-bar tp-yt-paper-icon-button';
     var TABS = '#tabsContainer [role="tab"],#tabsContainer tp-yt-paper-tab,#tabsContainer .tab-header';
 
@@ -318,10 +318,13 @@
                     }
                 }
             });
-        document.querySelectorAll('ytmusic-logo a,a.logo,a.ytmusic-logo,a[href="/"],a[href="https://music.youtube.com/"]')
-            .forEach(function (anchor) {
-                if (anchor.href !== LIBRARY) {
-                    anchor.href = LIBRARY;
+        document.querySelectorAll(LOGO)
+            .forEach(function (logo) {
+                if (!logo.hasAttribute('inert')) {
+                    logo.setAttribute('inert', '');
+                }
+                if (logo.getAttribute('aria-disabled') !== 'true') {
+                    logo.setAttribute('aria-disabled', 'true');
                 }
             });
         document.querySelectorAll(TABS)
@@ -361,7 +364,6 @@
         }
         if (target.closest(LOGO)) {
             cancel(event);
-            location.assign(LIBRARY);
             return;
         }
         if (target.closest(HIDDEN)) {
@@ -436,7 +438,7 @@
     }).observe(document, {
         childList: true, subtree: true, attributes: true,
         attributeFilter: ['href', 'hidden', 'aria-hidden', 'checked', 'aria-checked', 'aria-pressed',
-            'selected', 'style', 'disabled', 'src', 'autoplay']
+            'selected', 'style', 'disabled', 'src', 'autoplay', 'inert', 'aria-disabled']
     });
     schedule();
 }());

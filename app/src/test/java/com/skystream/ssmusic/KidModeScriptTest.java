@@ -85,7 +85,6 @@ public class KidModeScriptTest {
         assertTrue(script.contains("ytmusic-settings-button,#mini-guide,ytmusic-search-box,ytmusic-menu-renderer,#automix"));
         assertTrue(script.contains("ytmusic-nav-bar button"));
         assertTrue(script.contains("!node.closest(LOGO) && !node.querySelector(LOGO)"));
-        assertTrue(script.contains("ytmusic-logo a,a.logo,a.ytmusic-logo,a[href=\"/\"]"));
         assertTrue(script.contains("#tabsContainer [role=\"tab\"]"));
         assertTrue(script.contains("#tabsContainer .tab-header"));
         assertTrue(script.contains("value.title === 'Related'"));
@@ -93,6 +92,32 @@ public class KidModeScriptTest {
         assertTrue(script.contains("toggle.checked = false"));
         assertTrue(script.contains("toggle.disabled = true"));
         assertTrue(script.contains("media.autoplay = false"));
+    }
+
+    @Test
+    public void disablesLogoWithoutRedirectingOrHidingIt() throws IOException {
+        String script = script();
+        assertTrue(script.contains("ytmusic-logo,.ytmusic-logo,a.logo,ytmusic-nav-bar .logo,ytmusic-nav-bar #logo"));
+        String logoUpdate = script.substring(script.indexOf("document.querySelectorAll(LOGO)"),
+                script.indexOf("document.querySelectorAll(TABS)"));
+        assertTrue(logoUpdate.contains("if (!logo.hasAttribute('inert'))"));
+        assertTrue(logoUpdate.contains("logo.setAttribute('inert', '')"));
+        assertTrue(logoUpdate.contains("if (logo.getAttribute('aria-disabled') !== 'true')"));
+        assertTrue(logoUpdate.contains("logo.setAttribute('aria-disabled', 'true')"));
+        assertFalse(logoUpdate.contains("hide("));
+        assertFalse(script.contains("anchor.href = LIBRARY"));
+        assertTrue(script.contains("'inert', 'aria-disabled'"));
+
+        String logoClick = script.substring(script.indexOf("if (target.closest(LOGO))"),
+                script.indexOf("if (target.closest(HIDDEN))"));
+        assertTrue(logoClick.contains("cancel(event);"));
+        assertTrue(logoClick.contains("return;"));
+        assertFalse(logoClick.contains("location."));
+        assertFalse(logoClick.contains("LIBRARY"));
+
+        String homeClick = script.substring(script.indexOf("if (home(destination))"),
+                script.indexOf("} else if (!allowed(destination))"));
+        assertTrue(homeClick.contains("location.assign(LIBRARY)"));
     }
 
     @Test
