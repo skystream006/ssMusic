@@ -216,8 +216,7 @@ public final class AppUpdater {
         installRequested = false;
         awaitingPermission = false;
         permissionScreenLeft = false;
-        // Keep the APK retryable across recreation if the installer is cancelled.
-        preferences.edit().putBoolean("pending", true)
+        preferences.edit().putBoolean("pending", false)
                 .putBoolean("permission_requested", false)
                 .putBoolean("auto_install", false).apply();
     }
@@ -290,7 +289,8 @@ public final class AppUpdater {
             intent.setClipData(ClipData.newRawUri("ssMusic update", uri));
             activity.startActivity(intent);
             installRequested = false;
-            preferences.edit().putBoolean("pending", false)
+            // Keep the APK retryable across recreation if the installer is cancelled.
+            preferences.edit().putBoolean("pending", true)
                     .putBoolean("permission_requested", false)
                     .putBoolean("auto_install", false).apply();
         } catch (Exception e) {
