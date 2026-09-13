@@ -39,8 +39,14 @@ state, media notification commands, media-player swipes (direction, action, and 
 control was clicked or unavailable), and uncaught exceptions. Every entry names the calling
 code, and warnings, errors, and crashes carry a full stack trace. Entries go to logcat and to
 a private log file (`files/logs/ssmusic.log`) that is rotated once it reaches 512 KB. Use
+**View log** to open a scrollable, selectable text snapshot in the app, with **Refresh** to
+load newer entries. This also works with logging disabled for entries already saved. Use
 **Share log** to send the file to another app and **Clear log** to delete it. Because the log
 records visited YouTube Music URLs and track metadata, only share it with people you trust.
+
+To diagnose swipes, enable logging, reproduce the gesture, then open **View log**. Native
+touch reception and gesture rejection/cancellation are logged as well as completed actions,
+so a gesture that never reaches the page's touch handlers is no longer silent.
 
 The app requests the browser permissions YouTube Music may need, including camera, microphone, notification, and foreground playback permissions. When you send the app to the background, it keeps a low-priority playback notification active so music can continue playing.
 

@@ -72,8 +72,6 @@ public class MainActivityAppLogoTest {
     public void videoDisplayScriptMapsSwipesToExistingPlayerControls() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("return dx<0?'left':'right'"));
-        assertTrue(script.contains("return 'down'"));
         assertTrue(script.contains("action==='down'?'ytmusic-player-page .player-minimize-button"));
         assertTrue(script.contains("action==='left'?'ytmusic-player-bar .previous-button"));
         assertTrue(script.contains(":'ytmusic-player-bar .next-button"));
@@ -82,20 +80,17 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
-    public void videoDisplaySwipesLogCompletedActionsThroughDiagnosticBridge() {
+    public void videoDisplaySwipesReturnActionDiagnosticsToNativeLogger() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("function logSwipe(action,dispatched){try{"
-                + "if(window.ssmusicPlayback&&window.ssmusicPlayback.logDiagnostic){"));
         assertTrue(script.contains("var command=action==='down'?'minimize'"
                 + ":action==='up'?'up next':action==='left'?'previous':'next';"));
-        assertTrue(script.contains("window.ssmusicPlayback.logDiagnostic("
-                + "'Media player swipe '+action+': '+command"
-                + "+(dispatched?' control clicked':' control unavailable'));"));
-        assertTrue(script.contains("}catch(e){}}function installSwipes()"));
-        assertTrue(script.contains("if(action!==gesture.action){return;}"
-                + "var control=swipeControl(action);if(control){control.click();}"
-                + "logSwipe(action,!!control);"));
+        assertTrue(script.contains("return 'Media player swipe '+action+': '+command"
+                + "+(control?' control clicked':' control unavailable');"));
+        assertTrue(script.contains("return 'rejected: no hit target'"));
+        assertTrue(script.contains("return 'rejected: no expanded media surface'"));
+        assertTrue(script.contains("return 'rejected: nested control'"));
+        assertTrue(script.contains("return 'rejected: outside media bounds'"));
     }
 
     @Test
@@ -103,14 +98,11 @@ public class MainActivityAppLogoTest {
         for (boolean showThumbnail : new boolean[]{true, false}) {
             String script = MainActivity.videoDisplayScript(
                     showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
-            assertTrue(script.contains("if(-dy>=threshold&&-dy>Math.abs(dx)*1.25){return 'up';}"));
             assertTrue(script.contains(
                     ":action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"));
             assertTrue(script.contains(
                     "for(var i=0;i<controls.length&&(action!=='up'||i===0);i++){"));
-            assertTrue(script.contains("if(action){swipe.action=action;}"));
-            assertTrue(script.contains(
-                    "var control=swipeControl(action);if(control){control.click();}logSwipe(action,!!control);"));
+            assertTrue(script.contains("var control=swipeControl(action);if(control){control.click();}"));
             assertTrue(script.contains(":action==='up'?'up next':"));
         }
     }
@@ -122,17 +114,22 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("node.closest('ytmusic-player-page')"));
         assertTrue(script.contains("state==='PLAYER_PAGE_OPEN'||state==='FULLSCREEN'"));
         assertTrue(script.contains("!page.contains(target)"));
-        assertTrue(script.contains("touch.clientX<rect.left||touch.clientX>rect.right"));
-        assertTrue(script.contains("touch.clientY<rect.top||touch.clientY>rect.bottom"));
+        assertFalse(script.contains("!state||"));
+        assertTrue(script.contains("x<rect.left||x>rect.right"));
+        assertTrue(script.contains("y<rect.top||y>rect.bottom"));
         assertTrue(script.contains("target.closest('button,a,input,select,textarea"));
-        assertTrue(script.contains("event.touches.length!==1"));
-        assertTrue(script.contains("touch.identifier!==gesture.id"));
-        assertTrue(script.contains("touch.clientX-gesture.x,touch.clientY-gesture.y,60"));
-        assertTrue(script.contains("Math.abs(dx)>Math.abs(dy)*1.25"));
-        assertTrue(script.contains("if(action!==gesture.action){return;}"));
+        assertTrue(script.contains("[role=\"slider\"]"));
+        assertTrue(script.contains("[role=\"tab\"]"));
+        assertTrue(script.contains("gesture.id!==id"));
+        assertTrue(script.contains("gesture.url!==location.href||!mediaPage(gesture.node)"));
+        assertTrue(script.contains("['down','up','left','right'].indexOf(action)<0"));
         assertTrue(script.contains("control.getAttribute('aria-disabled')!=='true'"));
-        assertTrue(script.contains("event.preventDefault();event.stopImmediatePropagation();"));
-        assertTrue(script.contains("'touchcancel',function(){swipe=null;}"));
+        assertTrue(script.contains("document.addEventListener('yt-navigate-start',function(){navigating=true;clearSwipe();},true)"));
+        assertTrue(script.contains("document.addEventListener('yt-navigate-finish',function(){navigating=false;clearSwipe();},true)"));
+        assertTrue(script.contains("if(navigating){return 'rejected: navigation in progress';}"));
+        assertTrue(script.contains("window.addEventListener('popstate',clearSwipe,true)"));
+        assertTrue(script.contains("window.addEventListener('pagehide',clearSwipe,true)"));
+        assertTrue(script.contains("location.origin!=='https://music.youtube.com'"));
     }
 
     @Test
@@ -148,22 +145,31 @@ public class MainActivityAppLogoTest {
             assertTrue(script.contains("var node=target.closest(MEDIA_SELECTOR);var page=mediaPage(node);"));
             assertFalse(script.contains("var node=video();var page=mediaPage(node);"));
             assertTrue(script.contains("control&&control!==node;control=control.parentElement"));
-            assertTrue(script.contains("if(control.getAttribute('role')==='button'){return;}"));
+            assertTrue(script.contains("if(control.getAttribute('role')==='button'){return 'rejected: nested button';}"));
             assertFalse(script.contains("textarea,[role=\"button\"]"));
         }
     }
 
     @Test
-    public void videoDisplaySwipesCaptureBeforePageHandlersAndPreventNativePanning() {
+    public void videoDisplaySwipesUseNativeReceptionWithoutDuplicateDomListeners() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("MEDIA_SELECTOR+'{touch-action:none!important}'"));
-        assertTrue(script.contains("window.addEventListener('touchstart'"));
-        assertTrue(script.contains("window.addEventListener('touchmove'"));
-        assertTrue(script.contains("window.addEventListener('touchend'"));
-        assertTrue(script.contains("window.addEventListener('touchcancel'"));
-        assertTrue(script.contains("},{capture:true,passive:false});"));
-        assertFalse(script.contains("if(action&&swipeControl(action))"));
+        assertTrue(script.contains("window.__ssmusicNativeSwipeStart=function(id,fx,fy)"));
+        assertTrue(script.contains("window.__ssmusicNativeSwipeEnd=function(id,action)"));
+        assertFalse(script.contains("addEventListener('touch"));
+        assertFalse(script.contains("touch-action:none"));
+        assertFalse(script.contains("preventDefault()"));
+    }
+
+    @Test
+    public void nativeHitTestConvertsViewFractionsToVisibleCssViewport() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("var viewport=window.visualViewport"));
+        assertTrue(script.contains("(viewport?viewport.offsetLeft:0)+fx*(viewport?viewport.width:window.innerWidth)"));
+        assertTrue(script.contains("(viewport?viewport.offsetTop:0)+fy*(viewport?viewport.height:window.innerHeight)"));
+        assertTrue(script.contains("document.elementFromPoint(x,y)"));
+        assertFalse(script.contains("devicePixelRatio"));
     }
 
     @Test
