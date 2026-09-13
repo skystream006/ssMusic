@@ -83,16 +83,26 @@ The app requests the browser permissions YouTube Music may need, including camer
 ./gradlew test assembleDebug
 ```
 
-GitHub Actions tests and builds debug APK artifacts using the version committed in
-`app/build.gradle`. Bump both `versionName` and `versionCode` there for each new release.
+Builds require Git and a full-history checkout (`git fetch --unshallow` for an existing
+shallow clone). `app/build.gradle` derives both Android version fields from the number
+of first-parent commits after the fixed baseline commit `23d6b35` (version `0.10.02`,
+code `36`). Each new commit on `main`, including a merged pull request, advances both
+fields by one: the next version is `0.10.03`, code `37`. Patch and minor components
+roll over at 100 (for example, `0.10.99` becomes `0.11.00`). Do not move the baseline
+or manually bump the version fields.
+
+GitHub Actions tests and builds debug APK artifacts and reads the version from the
+built APK metadata, so the app, artifact name, and release tag agree.
 Successful builds on `main` publish a GitHub release tagged `v<versionName>` with the
 debug-signed APK and generated release notes. Existing releases are left unchanged;
 pull request builds only upload artifacts.
 
 To build a release manually, open **Actions → Manual Android Release → Run workflow**.
 This separate, manual-only workflow always checks out the latest `main` and uses its
-committed `versionName` and `versionCode` without incrementing them. It runs tests,
+Git-derived version without incrementing it again. Rebuilding the same commit uses
+the same version in either workflow. It runs tests,
 uploads a debug-signed APK artifact, and publishes a new release marked as latest.
 If that version's release already exists, it is left unchanged; the rebuilt APK is
-still available in the workflow artifacts. Bump both version fields on `main` before
-running it when you need a new release.
+still available in the workflow artifacts. Merge new changes into `main` when you
+need a new release. Pull request artifact versions are previews, not reserved release
+versions; the final version is calculated from the merged commit on `main`.
