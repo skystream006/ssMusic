@@ -553,6 +553,8 @@ public class MainActivity extends AppCompatActivity {
                 + "return rect.width>0&&rect.height>0&&getComputedStyle(element).visibility!=='hidden';"
                 + "}"
                 + "function clickFirstVisible(selector){"
+                // Resolve controls on demand because YouTube Music replaces player-bar DOM during
+                // SPA navigation and track changes.
                 + "var nodes=document.querySelectorAll(selector);"
                 + "for(var i=0;i<nodes.length;i++){if(visible(nodes[i])){nodes[i].click();return true;}}"
                 + "return false;"
@@ -572,7 +574,7 @@ public class MainActivity extends AppCompatActivity {
                 + "function move(event){"
                 + "if(!tracking){return;}"
                 + "var p=point(event);var dx=p.x-startX;var dy=p.y-startY;"
-                + "var vertical=dy>DRAG_SLOP_PX&&Math.abs(dy)>Math.abs(dx)*DRAG_VERTICAL_RATIO;"
+                + "var vertical=Math.abs(dy)>DRAG_SLOP_PX&&Math.abs(dy)>Math.abs(dx)*DRAG_VERTICAL_RATIO;"
                 + "var horizontal=Math.abs(dx)>DRAG_SLOP_PX&&Math.abs(dx)>Math.abs(dy)*DRAG_VERTICAL_RATIO;"
                 + "if(vertical||horizontal){dragging=true;if(event.cancelable){event.preventDefault();}}"
                 + "}"
