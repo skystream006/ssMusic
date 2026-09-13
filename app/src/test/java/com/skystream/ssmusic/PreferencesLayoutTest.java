@@ -19,6 +19,18 @@ public class PreferencesLayoutTest {
     private static final String ANDROID = "http://schemas.android.com/apk/res/android";
 
     @Test
+    public void settingsButtonClearsBottomPlaybackAndNavigationArea() throws Exception {
+        Document layout = readResource("layout/activity_main.xml");
+        Element button = findById(layout, "settings_button");
+        assertEquals("bottom|end", button.getAttributeNS(ANDROID, "layout_gravity"));
+        assertEquals("144dp", button.getAttributeNS(ANDROID, "layout_marginBottom"));
+        assertEquals("16dp", button.getAttributeNS(ANDROID, "layout_marginEnd"));
+        assertEquals("48dp", button.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("48dp", button.getAttributeNS(ANDROID, "layout_height"));
+        assertEquals("@string/settings", button.getAttributeNS(ANDROID, "contentDescription"));
+    }
+
+    @Test
     public void appearanceAndSiteModeUseLabeledDropdowns() throws Exception {
         Document layout = readResource("layout/dialog_preferences.xml");
         assertDropdown(layout, "theme_spinner", "@array/theme_options");
