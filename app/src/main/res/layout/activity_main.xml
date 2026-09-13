@@ -48,6 +48,19 @@
     </FrameLayout>
 
     <ImageButton
+        android:id="@+id/kid_mode_home_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|left"
+        android:layout_margin="16dp"
+        android:background="@drawable/bg_settings_button"
+        android:contentDescription="@string/home"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_home"
+        android:tint="#FFFFFF"
+        android:visibility="gone" />
+
+    <ImageButton
         android:id="@+id/settings_button"
         android:layout_width="48dp"
         android:layout_height="48dp"

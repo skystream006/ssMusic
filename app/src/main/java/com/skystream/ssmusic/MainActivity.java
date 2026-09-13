@@ -746,6 +746,7 @@ public class MainActivity extends AppCompatActivity {
 
     private PlaybackWebView webView;
     private ImageButton settingsButton;
+    private ImageButton kidModeHomeButton;
     private View statsOverlay;
     private StatsMonitor statsMonitor;
     private AppUpdater appUpdater;
@@ -809,6 +810,8 @@ public class MainActivity extends AppCompatActivity {
             Logger.event(TAG, "Settings panel opened");
             showPreferences();
         });
+        kidModeHomeButton = findViewById(R.id.kid_mode_home_button);
+        kidModeHomeButton.setOnClickListener(v -> loadUrl(KidModeNavigation.LIBRARY_URL));
         configureWebView();
         registerMediaCommandReceiver();
         settingsButton.setVisibility(View.VISIBLE);
@@ -1000,6 +1003,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateKidModeScript() {
+        kidModeHomeButton.setVisibility(isKidModeEnabled() ? View.VISIBLE : View.GONE);
         if (kidModeScriptHandler != null) {
             kidModeScriptHandler.remove();
             kidModeScriptHandler = null;
