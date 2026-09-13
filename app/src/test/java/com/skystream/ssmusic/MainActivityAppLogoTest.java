@@ -60,7 +60,9 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("else{node.style.removeProperty('opacity');}"));
         assertTrue(script.contains("DRAG_MINIMIZE_PX=80"));
         assertTrue(script.contains("DRAG_NAVIGATE_PX=80"));
-        assertTrue(script.contains("DRAG_VERTICAL_RATIO=1.2"));
+        assertTrue(script.contains("DRAG_AXIS_RATIO=1.2"));
+        assertTrue(script.contains("isVerticalDrag(dx,dy)"));
+        assertTrue(script.contains("isHorizontalDrag(dx,dy)"));
         assertTrue(script.contains("MINIMIZE_BUTTON_SELECTOR"));
         assertTrue(script.contains("PREVIOUS_BUTTON_SELECTOR"));
         assertTrue(script.contains("NEXT_BUTTON_SELECTOR"));
