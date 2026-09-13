@@ -59,10 +59,14 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("node.style.setProperty('opacity',hiddenOpacity,hiddenPriority)"));
         assertTrue(script.contains("else{node.style.removeProperty('opacity');}"));
         assertTrue(script.contains("DRAG_MINIMIZE_PX=80"));
+        assertTrue(script.contains("DRAG_NAVIGATE_PX=80"));
         assertTrue(script.contains("DRAG_VERTICAL_RATIO=1.2"));
         assertTrue(script.contains("MINIMIZE_BUTTON_SELECTOR"));
+        assertTrue(script.contains("PREVIOUS_BUTTON_SELECTOR"));
+        assertTrue(script.contains("NEXT_BUTTON_SELECTOR"));
         assertTrue(script.contains("installVideoDrag(node)"));
         assertTrue(script.contains("Minimize player"));
+        assertTrue(script.contains("if(dx<0){previousSong();}else{nextSong();}"));
         assertTrue(script.contains("node.addEventListener('touchend',end,{passive:false})"));
         assertFalse(script.contains("setInterval("));
     }
