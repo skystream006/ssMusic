@@ -86,4 +86,17 @@ final class Urls {
         }
         return null;
     }
+
+    static boolean isAllowedThumbnailHost(String host) {
+        if (host == null) {
+            return false;
+        }
+        String normalized = host.toLowerCase(java.util.Locale.US);
+        return normalized.equals("music.youtube.com")
+                || normalized.endsWith(".youtube.com")
+                || normalized.endsWith(".ytimg.com")
+                || normalized.endsWith(".ggpht.com")
+                || normalized.endsWith(".googleusercontent.com")
+                || normalized.endsWith(".gstatic.com");
+    }
 }

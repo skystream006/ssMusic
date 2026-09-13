@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -378,7 +377,7 @@ public class PlaybackKeepAliveService extends Service {
 
     private void setThumbnailUrl(String value) {
         String sanitized = sanitizeThumbnailUrl(value);
-        if (stringEquals(thumbnailUrl, sanitized)) {
+        if (java.util.Objects.equals(thumbnailUrl, sanitized)) {
             return;
         }
         thumbnailUrl = sanitized;
@@ -407,16 +406,8 @@ public class PlaybackKeepAliveService extends Service {
     }
 
     private boolean isAllowedThumbnailUrl(URL url) {
-        if (!"https".equalsIgnoreCase(url.getProtocol()) || url.getHost() == null) {
-            return false;
-        }
-        String host = url.getHost().toLowerCase(Locale.US);
-        return host.equals("music.youtube.com")
-                || host.endsWith(".youtube.com")
-                || host.endsWith(".ytimg.com")
-                || host.endsWith(".ggpht.com")
-                || host.endsWith(".googleusercontent.com")
-                || host.endsWith(".gstatic.com");
+        return "https".equalsIgnoreCase(url.getProtocol())
+                && Urls.isAllowedThumbnailHost(url.getHost());
     }
 
     private void loadThumbnailAsync(String url, int requestVersion) {
@@ -424,7 +415,7 @@ public class PlaybackKeepAliveService extends Service {
             Bitmap bitmap = downloadThumbnail(url);
             mainHandler.post(() -> {
                 if (destroyed || requestVersion != thumbnailRequestVersion
-                        || !stringEquals(thumbnailUrl, url)) {
+                        || !java.util.Objects.equals(thumbnailUrl, url)) {
                     return;
                 }
                 thumbnail = bitmap;
@@ -449,9 +440,6 @@ public class PlaybackKeepAliveService extends Service {
             connection.setConnectTimeout(THUMBNAIL_TIMEOUT_MS);
             connection.setReadTimeout(THUMBNAIL_TIMEOUT_MS);
             int responseCode = connection.getResponseCode();
-            if (!isAllowedThumbnailUrl(connection.getURL())) {
-                return null;
-            }
             if (responseCode < HttpURLConnection.HTTP_OK
                     || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
                 return null;
@@ -506,10 +494,6 @@ public class PlaybackKeepAliveService extends Service {
             sampleSize *= 2;
         }
         return sampleSize;
-    }
-
-    private boolean stringEquals(String first, String second) {
-        return first == null ? second == null : first.equals(second);
     }
 
     private String displayTitle() {

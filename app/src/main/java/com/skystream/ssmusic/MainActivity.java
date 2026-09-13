@@ -1009,7 +1009,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (sanitizedTitle.equals(currentTrackTitle)
                         && sanitizedArtist.equals(currentTrackArtist)
-                        && stringEquals(sanitizedThumbnailUrl, currentTrackThumbnailUrl)) {
+                        && java.util.Objects.equals(sanitizedThumbnailUrl, currentTrackThumbnailUrl)) {
                     return;
                 }
                 Logger.event(TAG, "Track metadata: " + sanitizedTitle + " - " + sanitizedArtist);
@@ -1064,25 +1064,9 @@ public class MainActivity extends AppCompatActivity {
             return null;
         }
         Uri uri = Uri.parse(normalized);
-        return "https".equalsIgnoreCase(uri.getScheme()) && isAllowedThumbnailHost(uri.getHost())
+        return "https".equalsIgnoreCase(uri.getScheme())
+                && Urls.isAllowedThumbnailHost(uri.getHost())
                 ? normalized : null;
-    }
-
-    private boolean isAllowedThumbnailHost(String host) {
-        if (host == null) {
-            return false;
-        }
-        String normalized = host.toLowerCase(Locale.US);
-        return normalized.equals("music.youtube.com")
-                || normalized.endsWith(".youtube.com")
-                || normalized.endsWith(".ytimg.com")
-                || normalized.endsWith(".ggpht.com")
-                || normalized.endsWith(".googleusercontent.com")
-                || normalized.endsWith(".gstatic.com");
-    }
-
-    private boolean stringEquals(String first, String second) {
-        return first == null ? second == null : first.equals(second);
     }
 
     private boolean isPlaybackLikelyActive() {
