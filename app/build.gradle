@@ -2,6 +2,27 @@ plugins {
     id 'com.android.application'
 }
 
+def gitOutput = { List<String> arguments ->
+    providers.exec {
+        workingDir rootDir
+        commandLine(['git'] + arguments)
+    }.standardOutput.asText.get().trim()
+}
+
+if (gitOutput(['rev-parse', '--is-shallow-repository']) == 'true') {
+    throw new GradleException('Versioning requires full Git history. Run git fetch --unshallow.')
+}
+
+// Keep this baseline fixed: each subsequent first-parent commit advances the version.
+def versionBaseline = '23d6b35ce12bad18592c85b3d6ff48f9e9ba8092'
+gitOutput(['merge-base', '--is-ancestor', versionBaseline, 'HEAD'])
+def versionIncrement = gitOutput(['rev-list', '--first-parent', '--count',
+        "${versionBaseline}..HEAD"]).toInteger()
+def appVersionCode = 36 + versionIncrement
+def versionNumber = 1002 + versionIncrement
+def appVersionName = String.format(java.util.Locale.ROOT, '%d.%02d.%02d',
+        versionNumber.intdiv(10000), versionNumber.intdiv(100) % 100, versionNumber % 100)
+
 android {
     namespace 'com.skystream.ssmusic'
     compileSdk 34
@@ -14,8 +35,8 @@ android {
         applicationId "com.skystream.ssmusic"
         minSdk 21
         targetSdk 34
-        versionCode 36
-        versionName "0.10.02"
+        versionCode appVersionCode
+        versionName appVersionName
     }
 
     signingConfigs {
