@@ -886,9 +886,6 @@ public class MainActivity extends AppCompatActivity {
             lastPlaybackSignalAtElapsedMs = SystemClock.elapsedRealtime();
         }
         if (playbackActive == playing) {
-            if (playing) {
-                runOnUiThread(() -> startPlaybackKeepAliveService(Boolean.TRUE));
-            }
             return;
         }
         playbackActive = playing;
