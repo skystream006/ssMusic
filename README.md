@@ -5,6 +5,7 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - mobile or desktop user agent mode
 - system, light, or dark app theme
 - video display default for showing the song thumbnail instead of available video
+- an **Open supported links** shortcut to Android's settings for handling `music.youtube.com` links
 - back, forward, refresh, and home navigation
 - optional debug logging
 - a **Stats for nerds** overlay with live memory, network, and storage usage
@@ -15,6 +16,14 @@ to the WebView from a synthetic same-origin path instead of the network.
 In the expanded media view, swipe down on the video area to minimize the player, up to
 open **Up next**, left for the previous song, or right for the next song. These gestures also work while the song
 thumbnail is shown. Taps and player controls retain their normal behavior.
+
+## Supported links
+
+To open YouTube Music links in ssMusic, choose **Open supported links** in the settings
+panel, enable the Android setting, and select `music.youtube.com` if prompted. Android 12+
+opens the app's link settings directly; older devices (or devices without that screen)
+open App info, where **Open by default** can be configured. Android requires user approval;
+the app cannot silently make itself the default link handler.
 
 ## Stats for nerds
 

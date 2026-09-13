@@ -16,6 +16,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -957,6 +958,8 @@ public class MainActivity extends AppCompatActivity {
         content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
         content.findViewById(R.id.view_log_button).setOnClickListener(v -> LogViewer.show(this));
         content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
+        content.findViewById(R.id.open_supported_links_button)
+                .setOnClickListener(v -> openSupportedLinksSettings());
 
         Switch statsSwitch = content.findViewById(R.id.stats_for_nerds_switch);
         statsSwitch.setChecked(preferences.getBoolean(KEY_STATS_FOR_NERDS, false));
@@ -997,6 +1000,24 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         dialog.show();
+    }
+
+    private void openSupportedLinksSettings() {
+        Uri packageUri = Uri.fromParts("package", getPackageName(), null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                startActivity(new Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, packageUri));
+                return;
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Logger.error(TAG, "Unable to open supported-link settings; trying app info", e);
+            }
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri));
+        } catch (ActivityNotFoundException | SecurityException e) {
+            Logger.error(TAG, "Unable to open app info for supported links", e);
+            Toast.makeText(this, R.string.supported_links_settings_failed, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void setStatsForNerdsEnabled(boolean enabled) {
