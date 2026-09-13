@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -293,7 +294,14 @@ public class MainActivity extends AppCompatActivity {
                     + "applyLogos(document);"
                     + "},true);"
                     + "watch(document.documentElement);"
-                    + "setInterval(function(){applyLogos(document);},1000);"
+                    // Bounded polling covers the initial load, where components attach their
+                    // shadow DOM late; afterwards the mutation observer and yt-navigate-finish
+                    // listener keep the swap applied without a permanent timer.
+                    + "var ticks=0;"
+                    + "var timer=setInterval(function(){"
+                    + "applyLogos(document);"
+                    + "if(++ticks>=30){clearInterval(timer);}"
+                    + "},1000);"
                     + "})()";
 
     /**
@@ -1348,7 +1356,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private WebResourceResponse appLogoResponse() {
-            InputStream logo = getResources().openRawResource(R.drawable.app_logo);
+            InputStream logo;
+            try {
+                logo = getResources().openRawResource(R.drawable.app_logo);
+            } catch (Resources.NotFoundException e) {
+                Logger.warn(TAG, "App logo resource unavailable", e);
+                return null;
+            }
             Map<String, String> headers = new HashMap<>();
             headers.put("Cache-Control", "no-cache");
             return new WebResourceResponse("image/png", null, 200, "OK", headers, logo);
