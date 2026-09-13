@@ -104,6 +104,27 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        android:text="@string/supported_links"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/supported_links_summary"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/open_supported_links_button"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/open_supported_links" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:text="@string/diagnostics"
         android:textStyle="bold" />
 
