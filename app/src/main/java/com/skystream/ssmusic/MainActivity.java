@@ -77,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
     static final String EXTRA_MEDIA_POSITION_MS = "media_position_ms";
     static final String EXTRA_MEDIA_START_TOKEN = "media_start_token";
     private static final long PLAYBACK_SIGNAL_GRACE_MS = 15000L;
-    private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
     private static final long POSITION_LOG_INTERVAL_MS = 30000L;
@@ -159,22 +158,8 @@ public class MainActivity extends AppCompatActivity {
                     + "try{Object.defineProperty(document,'webkitHidden',visible(false));}catch(e){}"
                     + "try{Object.defineProperty(document,'webkitVisibilityState',visible('visible'));}catch(e){}"
                     + "function stop(event){event.stopImmediatePropagation();}"
-                    + "function isBackgrounded(){"
-                    + "try{return document.visibilityState==='hidden'||!document.hasFocus();}"
-                    + "catch(e){return true;}"
-                    + "}"
-                    + "function keepPlaying(event){"
-                    + "var node=event&&event.target;"
-                    + "if(!node||typeof node.play!=='function'||!isBackgrounded()){return;}"
-                    + "if(window.ssmusicPlayback&&window.ssmusicPlayback.shouldAutoResume"
-                    + "&&!window.ssmusicPlayback.shouldAutoResume()){return;}"
-                    + "var p=node.play();"
-                    + "if(p&&typeof p.catch==='function'){p.catch(function(){});}"
-                    + "setTimeout(report,150);"
-                    + "}"
                     + "document.addEventListener('visibilitychange',stop,true);"
                     + "document.addEventListener('webkitvisibilitychange',stop,true);"
-                    + "document.addEventListener('pause',keepPlaying,true);"
                     + "function report(){"
                     + "if(window.ssmusicPlayback){window.ssmusicPlayback.setLocation(location.href);}"
                     + "var nodes=document.querySelectorAll('audio,video');"
@@ -271,7 +256,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean mediaCommandReceiverRegistered;
     private boolean keepAliveServiceRunning;
     private long keepAliveStartToken;
-    private volatile long suppressAutoResumeUntilElapsedMs;
     private long lastPlaybackSignalAtElapsedMs;
     private String lastPersistedPositionIdentityUrl;
     private float lastPersistedPositionSeconds;
@@ -868,11 +852,6 @@ public class MainActivity extends AppCompatActivity {
         if (!playbackBridgeEnabled) {
             return;
         }
-        if (command == MEDIA_COMMAND_PAUSE || command == MEDIA_COMMAND_STOP) {
-            suppressAutoResumeUntilElapsedMs = SystemClock.elapsedRealtime() + AUTO_RESUME_SUPPRESSION_MS;
-        } else {
-            suppressAutoResumeUntilElapsedMs = 0L;
-        }
         String script;
         if (command == MEDIA_COMMAND_PLAY) {
             script = "(function(){var nodes=document.querySelectorAll('audio,video');var active=null;var node=null;"
@@ -1004,11 +983,6 @@ public class MainActivity extends AppCompatActivity {
                     startPlaybackKeepAliveService(null);
                 }
             });
-        }
-
-        @JavascriptInterface
-        public boolean shouldAutoResume() {
-            return SystemClock.elapsedRealtime() >= suppressAutoResumeUntilElapsedMs;
         }
 
         @JavascriptInterface
