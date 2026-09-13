@@ -1,6 +1,7 @@
 package com.skystream.ssmusic;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 
@@ -41,9 +42,37 @@ public class PreferencesLayoutTest {
                 "stats_for_nerds_switch", "log_actions"}) {
             assertSame(advanced, findById(layout, id).getParentNode());
         }
-        for (String id : new String[]{"theme_spinner", "site_mode_spinner",
-                "video_thumbnail_switch", "navigation_bar", "check_updates_button"}) {
+        for (String id : new String[]{"video_thumbnail_switch", "navigation_bar"}) {
             assertSame(advanced.getParentNode(), findById(layout, id).getParentNode());
+        }
+        for (String id : new String[]{"theme_spinner", "site_mode_spinner",
+                "check_updates_button"}) {
+            assertSame(advanced.getParentNode(), findById(layout, id).getParentNode().getParentNode());
+        }
+    }
+
+    @Test
+    public void updateButtonPrecedesVersionInOneRow() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        Element button = findById(layout, "check_updates_button");
+        Element version = findById(layout, "app_version");
+        assertHorizontalRow(button, version);
+        assertEquals("0dp", button.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("1", button.getAttributeNS(ANDROID, "layout_weight"));
+        assertEquals("wrap_content", version.getAttributeNS(ANDROID, "layout_width"));
+    }
+
+    @Test
+    public void navigationControlsRemainWithoutHeading() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        NodeList labels = layout.getElementsByTagName("TextView");
+        for (int i = 0; i < labels.getLength(); i++) {
+            Element label = (Element) labels.item(i);
+            assertFalse("@string/navigation".equals(label.getAttributeNS(ANDROID, "text")));
+        }
+        Element navigation = findById(layout, "navigation_bar");
+        for (String id : new String[]{"back_button", "forward_button", "refresh_button", "home_button"}) {
+            assertSame(navigation, findById(layout, id).getParentNode());
         }
     }
 
@@ -97,6 +126,23 @@ public class PreferencesLayoutTest {
             }
         }
         assertNotNull("Missing dropdown label: " + id, label);
+        assertHorizontalRow(label, spinner);
+        assertEquals("0dp", label.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("1", label.getAttributeNS(ANDROID, "layout_weight"));
+        assertEquals("wrap_content", spinner.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("48dp", spinner.getAttributeNS(ANDROID, "minHeight"));
+    }
+
+    private static void assertHorizontalRow(Element first, Element second) {
+        Element row = (Element) first.getParentNode();
+        assertSame(row, second.getParentNode());
+        assertEquals("LinearLayout", row.getTagName());
+        assertEquals("horizontal", row.getAttributeNS(ANDROID, "orientation"));
+        assertEquals("center_vertical", row.getAttributeNS(ANDROID, "gravity"));
+        NodeList children = row.getElementsByTagName("*");
+        assertEquals(2, children.getLength());
+        assertSame(first, children.item(0));
+        assertSame(second, children.item(1));
     }
 
     private static void assertOptions(Document strings, String name, String... expected) {
