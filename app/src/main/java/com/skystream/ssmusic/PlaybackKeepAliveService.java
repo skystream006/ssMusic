@@ -193,7 +193,7 @@ public class PlaybackKeepAliveService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
         builder
-                .setSmallIcon(R.drawable.ic_launcher)
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(displayTitle())
                 .setContentText(displayArtist())
                 .setContentIntent(pendingIntent)
