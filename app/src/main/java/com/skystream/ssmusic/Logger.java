@@ -5,8 +5,10 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
@@ -82,7 +84,6 @@ public final class Logger {
             event("Logger", "Logging disabled");
             enabled = false;
             enableLoggingReminderShown.set(false);
-            shutdownWriter();
         }
     }
 
@@ -116,6 +117,42 @@ public final class Logger {
         return file != null && file.isFile() && file.length() > 0L;
     }
 
+    public interface LogReadCallback {
+        void onRead(String text, IOException error);
+    }
+
+    /** Reads a snapshot off the UI thread, after entries already queued on the writer. */
+    public static synchronized void readCurrentLog(Context context, LogReadCallback callback) {
+        File file = logFile(context);
+        ensureWriter().execute(() -> {
+            String text = "";
+            IOException error = null;
+            try {
+                text = readLogFile(file);
+            } catch (IOException e) {
+                error = e;
+            }
+            callback.onRead(text, error);
+        });
+    }
+
+    static String readLogFile(File file) throws IOException {
+        synchronized (FILE_LOCK) {
+            if (file == null || !file.exists()) {
+                return "";
+            }
+            try (InputStreamReader input = new InputStreamReader(new FileInputStream(file), UTF_8)) {
+                StringBuilder text = new StringBuilder();
+                char[] buffer = new char[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    text.append(buffer, 0, count);
+                }
+                return text.toString();
+            }
+        }
+    }
+
     /**
      * Deletes the current log and its backup. The deletion is queued behind pending writes,
      * so it may complete shortly after this call returns.
@@ -134,11 +171,7 @@ public final class Logger {
         };
         // Delete on the writer thread so entries queued before the clear cannot be written
         // into the new file afterwards.
-        ExecutorService executor = enabled ? ensureWriter() : writer;
-        if (executor == null) {
-            delete.run();
-            return;
-        }
+        ExecutorService executor = ensureWriter();
         try {
             executor.execute(delete);
         } catch (RuntimeException e) {
@@ -240,9 +273,9 @@ public final class Logger {
             return executor;
         }
         synchronized (Logger.class) {
-            // Re-check under the lock so a concurrent disable cannot be undone by a log call
-            // that passed the enabled check just before the writer was shut down.
-            if (writer == null && enabled) {
+            // Keep one file queue even when logging is disabled, so reads and clears cannot
+            // overtake writes that were queued before the preference changed.
+            if (writer == null) {
                 writer = Executors.newSingleThreadExecutor(runnable -> {
                     Thread thread = new Thread(runnable, "ssmusic-logger");
                     thread.setDaemon(true);
@@ -250,17 +283,6 @@ public final class Logger {
                 });
             }
             return writer;
-        }
-    }
-
-    private static void shutdownWriter() {
-        ExecutorService executor;
-        synchronized (Logger.class) {
-            executor = writer;
-            writer = null;
-        }
-        if (executor != null) {
-            executor.shutdown();
         }
     }
 

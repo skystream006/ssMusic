@@ -462,8 +462,7 @@ public class MainActivity extends AppCompatActivity {
                 + "background:rgba(0,0,0,.78)!important;color:#fff!important;font:600 14px/1 sans-serif!important;letter-spacing:.2px!important;"
                 + "cursor:pointer!important;box-shadow:0 2px 8px rgba(0,0,0,.45)!important}'"
                 + "+' #'+COVER_ID+'{position:absolute!important;object-fit:contain!important;background:#000!important;"
-                + "pointer-events:none!important;z-index:2147483646!important}'"
-                + "+' '+MEDIA_SELECTOR+'{touch-action:none!important}';"
+                + "pointer-events:none!important;z-index:2147483646!important}';"
                 + "(document.head||document.documentElement).appendChild(style);"
                 + "}"
                 + "function player(){return document.querySelector('ytmusic-player-page #player,ytmusic-player-page .player,ytmusic-player,ytmusic-player-page')||document.body;}"
@@ -571,7 +570,8 @@ public class MainActivity extends AppCompatActivity {
                 + "var page=node&&node.closest('ytmusic-player-page');"
                 + "var layout=document.querySelector('ytmusic-app-layout');"
                 + "var state=page&&(page.getAttribute('player-ui-state')||(layout&&layout.getAttribute('player-ui-state')));"
-                + "return page&&node.isConnected&&(!state||state==='PLAYER_PAGE_OPEN'||state==='FULLSCREEN')"
+                + "return page&&node.isConnected&&(state==='PLAYER_PAGE_OPEN'||state==='FULLSCREEN')"
+                + "&&getComputedStyle(page).display!=='none'"
                 + "&&getComputedStyle(page).visibility!=='hidden'?page:null;"
                 + "}"
                 + "function swipeControl(action){"
@@ -590,65 +590,50 @@ public class MainActivity extends AppCompatActivity {
                 + "}"
                 + "return null;"
                 + "}"
-                + "function swipeDirection(dx,dy,threshold){"
-                + "if(Math.abs(dx)>=threshold&&Math.abs(dx)>Math.abs(dy)*1.25){return dx<0?'left':'right';}"
-                + "if(dy>=threshold&&dy>Math.abs(dx)*1.25){return 'down';}"
-                + "if(-dy>=threshold&&-dy>Math.abs(dx)*1.25){return 'up';}"
-                + "return '';"
-                + "}"
-                + "function logSwipe(action,dispatched){"
-                + "try{"
-                + "if(window.ssmusicPlayback&&window.ssmusicPlayback.logDiagnostic){"
-                + "var command=action==='down'?'minimize':action==='up'?'up next':action==='left'?'previous':'next';"
-                + "window.ssmusicPlayback.logDiagnostic('Media player swipe '+action+': '+command"
-                + "+(dispatched?' control clicked':' control unavailable'));"
-                + "}"
-                + "}catch(e){}"
-                + "}"
                 + "function installSwipes(){"
-                + "var swipe=null;"
-                + "window.addEventListener('touchstart',function(event){"
+                + "var swipe=null;var navigating=false;"
+                + "function clearSwipe(){swipe=null;}"
+                + "document.addEventListener('yt-navigate-start',function(){navigating=true;clearSwipe();},true);"
+                + "document.addEventListener('yt-navigate-finish',function(){navigating=false;clearSwipe();},true);"
+                + "window.addEventListener('popstate',clearSwipe,true);"
+                + "window.addEventListener('hashchange',clearSwipe,true);"
+                + "window.addEventListener('pagehide',clearSwipe,true);"
+                + "window.__ssmusicNativeSwipeStart=function(id,fx,fy){"
                 + "swipe=null;"
-                + "if(event.touches.length!==1){return;}"
-                + "var target=event.target;"
-                + "if(!target.closest||target.closest('button,a,input,select,textarea,[role=\"slider\"],"
-                + "tp-yt-paper-icon-button,yt-icon-button,.ytp-chrome-bottom,#'+ROOT_ID)){return;}"
+                + "if(location.origin!=='https://music.youtube.com'){return 'rejected: untrusted origin';}"
+                + "if(navigating){return 'rejected: navigation in progress';}"
+                + "if(!Number.isFinite(fx)||!Number.isFinite(fy)||fx<0||fx>1||fy<0||fy>1){"
+                + "return 'rejected: outside viewport';}"
+                // Android pixels are normalized to the visible viewport, not display density.
+                + "var viewport=window.visualViewport;"
+                + "var x=(viewport?viewport.offsetLeft:0)+fx*(viewport?viewport.width:window.innerWidth);"
+                + "var y=(viewport?viewport.offsetTop:0)+fy*(viewport?viewport.height:window.innerHeight);"
+                + "var target=document.elementFromPoint(x,y);"
+                + "if(!target||!target.closest){return 'rejected: no hit target';}"
+                + "if(target.closest('button,a,input,select,textarea,[contenteditable=\"true\"],[role=\"slider\"],"
+                + "[role=\"tab\"],[role=\"menuitem\"],tp-yt-paper-icon-button,yt-icon-button,"
+                + ".ytp-chrome-bottom,.ytp-chrome-top,.ytp-popup,#'+ROOT_ID)){return 'rejected: nested control';}"
                 + "var node=target.closest(MEDIA_SELECTOR);var page=mediaPage(node);"
-                + "if(!page||!page.contains(target)){return;}"
+                + "if(!page||!page.contains(target)){return 'rejected: no expanded media surface';}"
                 // The media surface itself can be a button, but nested controls must retain touches.
                 + "for(var control=target;control&&control!==node;control=control.parentElement){"
-                + "if(control.getAttribute('role')==='button'){return;}"
+                + "if(control.getAttribute('role')==='button'){return 'rejected: nested button';}"
                 + "}"
-                + "var touch=event.touches[0];var rect=node.getBoundingClientRect();"
-                + "if(rect.width<=0||rect.height<=0||touch.clientX<rect.left||touch.clientX>rect.right"
-                + "||touch.clientY<rect.top||touch.clientY>rect.bottom){return;}"
-                + "swipe={id:touch.identifier,x:touch.clientX,y:touch.clientY,node:node,action:''};"
-                + "},{capture:true,passive:true});"
-                + "window.addEventListener('touchmove',function(event){"
-                + "if(!swipe){return;}"
-                + "if(event.touches.length!==1||event.touches[0].identifier!==swipe.id"
-                + "||!mediaPage(swipe.node)||!event.cancelable){swipe=null;return;}"
-                + "var touch=event.touches[0];"
-                + "if(!swipe.action){"
-                + "var action=swipeDirection(touch.clientX-swipe.x,touch.clientY-swipe.y,12);"
-                + "if(action){swipe.action=action;}"
-                + "}"
-                + "if(swipe.action){event.preventDefault();event.stopImmediatePropagation();}"
-                + "},{capture:true,passive:false});"
-                + "window.addEventListener('touchend',function(event){"
+                + "var rect=node.getBoundingClientRect();"
+                + "if(rect.width<=0||rect.height<=0||x<rect.left||x>rect.right||y<rect.top||y>rect.bottom){"
+                + "return 'rejected: outside media bounds';}"
+                + "swipe={id:id,node:node,url:location.href};return 'accepted';"
+                + "};"
+                + "window.__ssmusicNativeSwipeEnd=function(id,action){"
                 + "var gesture=swipe;swipe=null;"
-                + "if(!gesture||!gesture.action){return;}"
-                + "if(event.cancelable){event.preventDefault();}"
-                + "event.stopImmediatePropagation();"
-                + "if(event.touches.length||event.changedTouches.length!==1||!mediaPage(gesture.node)){return;}"
-                + "var touch=event.changedTouches[0];"
-                + "if(touch.identifier!==gesture.id){return;}"
-                + "var action=swipeDirection(touch.clientX-gesture.x,touch.clientY-gesture.y,60);"
-                + "if(action!==gesture.action){return;}"
+                + "if(location.origin!=='https://music.youtube.com'||navigating||!gesture||gesture.id!==id"
+                + "||gesture.url!==location.href||!mediaPage(gesture.node)){return 'rejected: stale media gesture';}"
+                + "if(['down','up','left','right'].indexOf(action)<0){return 'rejected: unknown direction';}"
                 + "var control=swipeControl(action);if(control){control.click();}"
-                + "logSwipe(action,!!control);"
-                + "},{capture:true,passive:false});"
-                + "window.addEventListener('touchcancel',function(){swipe=null;},{capture:true,passive:true});"
+                + "var command=action==='down'?'minimize':action==='up'?'up next':action==='left'?'previous':'next';"
+                + "return 'Media player swipe '+action+': '+command"
+                + "+(control?' control clicked':' control unavailable');"
+                + "};"
                 + "}"
                 + "window.__ssmusicApplyVideoDisplay=apply;"
                 + "window.__ssmusicSetVideoThumbnailDefault=function(value){showing=!!value;window.__ssmusicVideoThumbnailDefault=showing;apply();};"
@@ -696,7 +681,7 @@ public class MainActivity extends AppCompatActivity {
 
     private byte[] appLogoBytes;
 
-    private WebView webView;
+    private PlaybackWebView webView;
     private ImageButton settingsButton;
     private View statsOverlay;
     private StatsMonitor statsMonitor;
@@ -881,6 +866,7 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("SetJavaScriptEnabled")
     private void configureWebView() {
         Logger.event(TAG, "Configuring WebView, desktop mode: " + isDesktopMode());
+        webView.setMediaSwipesEnabled(true);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -968,6 +954,7 @@ public class MainActivity extends AppCompatActivity {
         loggingSwitch.setOnCheckedChangeListener(
                 (button, checked) -> Logger.setEnabled(MainActivity.this, checked));
         content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
+        content.findViewById(R.id.view_log_button).setOnClickListener(v -> LogViewer.show(this));
         content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
 
         Switch statsSwitch = content.findViewById(R.id.stats_for_nerds_switch);
@@ -1655,6 +1642,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
+            webView.cancelMediaSwipe("navigation");
             Logger.event(TAG, "Page started: " + url);
             logoInjectionHandler.removeCallbacksAndMessages(null);
             updatePlaybackService(false);
