@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
 
 jobs:
@@ -79,21 +79,3 @@ jobs:
           name: ${{ steps.apk_name.outputs.apk_name }}
           path: ${{ steps.apk_name.outputs.apk_name }}.apk
           if-no-files-found: error
-
-      - name: Publish GitHub release
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION_NAME: ${{ steps.version.outputs.version_name }}
-          APK_NAME: ${{ steps.apk_name.outputs.apk_name }}
-        run: |
-          tag="v${VERSION_NAME}"
-          if gh release view "$tag" > /dev/null 2>&1; then
-            echo "Release $tag already exists; leaving it unchanged."
-            exit 0
-          fi
-          gh release create "$tag" "${APK_NAME}.apk" \
-            --target "$GITHUB_SHA" \
-            --title "ssMusic ${VERSION_NAME}" \
-            --generate-notes
