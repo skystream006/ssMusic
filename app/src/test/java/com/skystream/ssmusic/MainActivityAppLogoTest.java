@@ -69,6 +69,39 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void videoDisplayScriptMapsSwipesToExistingPlayerControls() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("return dx<0?'left':'right'"));
+        assertTrue(script.contains("return 'down'"));
+        assertTrue(script.contains("action==='down'?'ytmusic-player-page .player-minimize-button"));
+        assertTrue(script.contains("action==='left'?'ytmusic-player-bar .previous-button"));
+        assertTrue(script.contains(":'ytmusic-player-bar .next-button"));
+        assertTrue(script.contains("var control=swipeControl(action);if(control){control.click();}"));
+        assertTrue(script.contains("window.__ssmusicVideoDisplayInstalled=true;installSwipes();"));
+    }
+
+    @Test
+    public void videoDisplaySwipesPreserveControlsAndRejectUnintendedGestures() {
+        String script = MainActivity.videoDisplayScript(
+                false, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("node.closest('ytmusic-player-page')"));
+        assertTrue(script.contains("state==='PLAYER_PAGE_OPEN'||state==='FULLSCREEN'"));
+        assertTrue(script.contains("!page.contains(target)"));
+        assertTrue(script.contains("touch.clientX<rect.left||touch.clientX>rect.right"));
+        assertTrue(script.contains("touch.clientY<rect.top||touch.clientY>rect.bottom"));
+        assertTrue(script.contains("target.closest('button,a,input,select,textarea"));
+        assertTrue(script.contains("event.touches.length!==1"));
+        assertTrue(script.contains("touch.identifier!==gesture.id"));
+        assertTrue(script.contains("touch.clientX-gesture.x,touch.clientY-gesture.y,60"));
+        assertTrue(script.contains("Math.abs(dx)>Math.abs(dy)*1.25"));
+        assertTrue(script.contains("if(action!==gesture.action){return;}"));
+        assertTrue(script.contains("control.getAttribute('aria-disabled')!=='true'"));
+        assertTrue(script.contains("event.preventDefault();event.stopImmediatePropagation();"));
+        assertTrue(script.contains("'touchcancel',function(){swipe=null;}"));
+    }
+
+    @Test
     public void jsStringLiteralEscapesUnsafeCharacters() {
         assertEquals("'Play \\'video\\' \\\\ now\\n'",
                 MainActivity.jsStringLiteral("Play 'video' \\ now\n"));
