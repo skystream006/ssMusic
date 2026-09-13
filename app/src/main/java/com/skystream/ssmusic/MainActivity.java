@@ -43,6 +43,8 @@ import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -123,6 +125,53 @@ public class MainActivity extends AppCompatActivity {
                     + "return true;"
                     + "}"
                     + "if(!apply()){setTimeout(apply,50);}"
+                    + "})()";
+
+    static final String APP_LOGO_PATH = "/ssmusic_app_logo.png";
+
+    static final String APP_LOGO_SCRIPT =
+            "(function(){"
+                    + "var CLASS='ssmusic-app-logo-overlay';"
+                    + "var SRC=location.origin+'" + APP_LOGO_PATH + "';"
+                    + "function asArray(list){return Array.prototype.slice.call(list);}"
+                    + "function paint(logo){"
+                    + "var root=logo.shadowRoot||logo;"
+                    + "var host=root.host||root;"
+                    + "if(!root.querySelector||!host.style){return;}"
+                    + "if(getComputedStyle(host).position==='static'){"
+                    + "host.style.setProperty('position','relative','important');"
+                    + "}"
+                    + "var children=asArray(root.children);"
+                    + "for(var i=0;i<children.length;i++){"
+                    + "if(!children[i].classList.contains(CLASS)){"
+                    + "children[i].style.setProperty('opacity','0','important');"
+                    + "}"
+                    + "}"
+                    + "var image=root.querySelector('img.'+CLASS);"
+                    + "if(!image){"
+                    + "image=document.createElement('img');"
+                    + "image.className=CLASS;"
+                    + "image.alt='ssMusic';"
+                    + "root.appendChild(image);"
+                    + "}"
+                    + "image.style.setProperty('position','absolute','important');"
+                    + "image.style.setProperty('inset','0','important');"
+                    + "image.style.setProperty('width','100%','important');"
+                    + "image.style.setProperty('height','100%','important');"
+                    + "image.style.setProperty('object-fit','contain','important');"
+                    + "image.style.setProperty('pointer-events','none','important');"
+                    + "if(image.src!==SRC){image.src=SRC;}"
+                    + "}"
+                    + "function apply(){"
+                    + "var logos=document.querySelectorAll('ytmusic-logo');"
+                    + "for(var i=0;i<logos.length;i++){paint(logos[i]);}"
+                    + "}"
+                    + "apply();"
+                    + "if(window.__ssmusicAppLogoInstalled){return;}"
+                    + "window.__ssmusicAppLogoInstalled=true;"
+                    + "new MutationObserver(apply).observe(document.documentElement,"
+                    + "{childList:true,subtree:true});"
+                    + "document.addEventListener('yt-navigate-finish',apply,true);"
                     + "})()";
 
     static final String AD_JSON_PRUNE_SCRIPT =
@@ -669,6 +718,20 @@ public class MainActivity extends AppCompatActivity {
         return SiteScope.isPlaybackUrl(origin) || SiteScope.isGoogleAccountUrl(origin);
     }
 
+    static boolean isAppLogoRequest(String url) {
+        if (url == null) {
+            return false;
+        }
+        try {
+            URI uri = new URI(url);
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && "music.youtube.com".equalsIgnoreCase(uri.getHost())
+                    && APP_LOGO_PATH.equals(uri.getPath());
+        } catch (URISyntaxException e) {
+            return false;
+        }
+    }
+
     private void injectPageScripts(WebView view) {
         if (!SiteScope.isPlaybackUrl(view.getUrl())) {
             return;
@@ -677,6 +740,7 @@ public class MainActivity extends AppCompatActivity {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
+        view.evaluateJavascript(APP_LOGO_SCRIPT, null);
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
     }
@@ -1068,12 +1132,23 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            if (isAppLogoRequest(request.getUrl().toString())) {
+                return appLogoResponse();
+            }
             return blockedResponse(request.getUrl().toString());
         }
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            if (isAppLogoRequest(url)) {
+                return appLogoResponse();
+            }
             return blockedResponse(url);
+        }
+
+        private WebResourceResponse appLogoResponse() {
+            return new WebResourceResponse("image/png", null,
+                    getResources().openRawResource(R.mipmap.ic_launcher));
         }
 
         @Override
