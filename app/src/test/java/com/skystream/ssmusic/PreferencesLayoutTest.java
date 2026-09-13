@@ -23,7 +23,7 @@ public class PreferencesLayoutTest {
         Document layout = readResource("layout/activity_main.xml");
         Element button = findById(layout, "settings_button");
         assertEquals("bottom|end", button.getAttributeNS(ANDROID, "layout_gravity"));
-        assertEquals("144dp", button.getAttributeNS(ANDROID, "layout_marginBottom"));
+        assertEquals("77dp", button.getAttributeNS(ANDROID, "layout_marginBottom"));
         assertEquals("16dp", button.getAttributeNS(ANDROID, "layout_marginEnd"));
         assertEquals("48dp", button.getAttributeNS(ANDROID, "layout_width"));
         assertEquals("48dp", button.getAttributeNS(ANDROID, "layout_height"));
