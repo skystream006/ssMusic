@@ -218,6 +218,9 @@ public class MainActivity extends AppCompatActivity {
                     // exactly the moment the process is most fragile.
                     + "var reportTimer=null;"
                     + "var reportBurstCount=0;"
+                    // 120ms is comfortably longer than a single synchronous event-dispatch tick
+                    // (so genuinely-simultaneous triggers coalesce), yet short enough that the
+                    // reported state still feels immediate to anything observing the bridge.
                     + "var REPORT_DEBOUNCE_MS=120;"
                     + "function flushReport(){"
                     + "reportTimer=null;"

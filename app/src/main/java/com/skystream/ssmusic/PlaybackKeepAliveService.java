@@ -62,8 +62,15 @@ public class PlaybackKeepAliveService extends Service {
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS
                 || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
             // A genuine external focus loss (call, another player, etc.) is the clearest
-            // possible signal for why playback stopped while backgrounded, so surface it.
+            // possible signal for why playback stopped while backgrounded, so surface it and
+            // bring the WebView/notification state in line rather than silently drifting out
+            // of sync with what the system actually did to the audio stream.
             hasAudioFocus = false;
+            if (playing) {
+                Logger.event(TAG, "Pausing playback due to audio focus loss");
+                handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
+                setPlaying(false, true);
+            }
         } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
             hasAudioFocus = true;
         }
@@ -169,6 +176,7 @@ public class PlaybackKeepAliveService extends Service {
         wakeLock = null;
     }
 
+    @SuppressWarnings("deprecation")
     private void requestAudioFocus() {
         if (hasAudioFocus) {
             return;
@@ -200,6 +208,7 @@ public class PlaybackKeepAliveService extends Service {
         Logger.event(TAG, "Audio focus requested, granted: " + hasAudioFocus);
     }
 
+    @SuppressWarnings("deprecation")
     private void abandonAudioFocus() {
         if (audioManager == null || !hasAudioFocus) {
             return;
