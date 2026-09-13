@@ -56,7 +56,8 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("transform:translateX(-50%)"));
         assertTrue(script.contains("cursor:pointer"));
         assertTrue(script.contains("node.style.setProperty('opacity','0','important')"));
-        assertTrue(script.contains("hidden.style.removeProperty('opacity')"));
+        assertTrue(script.contains("node.style.setProperty('opacity',hiddenOpacity,hiddenPriority)"));
+        assertTrue(script.contains("else{node.style.removeProperty('opacity');}"));
         assertFalse(script.contains("setInterval("));
     }
 
