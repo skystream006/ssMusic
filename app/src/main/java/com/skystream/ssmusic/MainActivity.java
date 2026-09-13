@@ -733,7 +733,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** Identifies the synthetic same-origin icon request served from the app's mipmap resources. */
     static boolean isAppLogoRequest(String url) {
-        if (url == null) {
+        if (url == null || !url.contains(APP_LOGO_PATH)) {
             return false;
         }
         try {
@@ -1162,8 +1162,8 @@ public class MainActivity extends AppCompatActivity {
 
         private WebResourceResponse appLogoResponse() {
             byte[] bytes = appLogoBytes();
-            return bytes == null ? null : new WebResourceResponse("image/png", null,
-                    new ByteArrayInputStream(bytes));
+            return new WebResourceResponse("image/png", null,
+                    new ByteArrayInputStream(bytes == null ? new byte[0] : bytes));
         }
 
         private byte[] appLogoBytes() {
