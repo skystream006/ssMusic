@@ -12,6 +12,7 @@ import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Optional debug logging. Disabled by default; when the user turns it on from the settings
@@ -27,11 +28,14 @@ public final class Logger {
     static final String LOG_BACKUP_FILE_NAME = "ssmusic-previous.log";
 
     private static final String LOGCAT_TAG = "ssMusic";
+    private static final String ENABLE_LOGGING_MESSAGE =
+            "Enable logging in settings to capture diagnostics.";
     private static final Charset UTF_8 = Charset.forName("UTF-8");
     private static final Object FILE_LOCK = new Object();
 
     private static volatile Context appContext;
     private static volatile boolean enabled;
+    private static final AtomicBoolean enableLoggingReminderShown = new AtomicBoolean();
     private static volatile ExecutorService writer;
     private static boolean crashHandlerInstalled;
 
@@ -69,6 +73,7 @@ public final class Logger {
                     .apply();
         }
         if (value && !enabled) {
+            enableLoggingReminderShown.set(false);
             enabled = true;
             ensureWriter();
             installCrashHandler();
@@ -76,6 +81,7 @@ public final class Logger {
         } else if (!value && enabled) {
             event("Logger", "Logging disabled");
             enabled = false;
+            enableLoggingReminderShown.set(false);
             shutdownWriter();
         }
     }
@@ -142,6 +148,7 @@ public final class Logger {
 
     private static void write(String level, String tag, String message, Throwable throwable) {
         if (!enabled) {
+            logEnableLoggingNeeded(level, tag, message);
             return;
         }
         StackTraceElement[] callerTrace = new Throwable().getStackTrace();
@@ -159,8 +166,31 @@ public final class Logger {
         }
     }
 
+    private static void logEnableLoggingNeeded(String level, String tag, String message) {
+        if (!needsEnableLoggingReminder(level)) {
+            return;
+        }
+        if (!enableLoggingReminderShown.compareAndSet(false, true)) {
+            return;
+        }
+        Log.d(logcatTag(tag), enableLoggingReminder(message));
+    }
+
+    static boolean needsEnableLoggingReminder(String level) {
+        return "W".equals(level) || "E".equals(level);
+    }
+
+    static String enableLoggingReminder(String message) {
+        StringBuilder reminder = new StringBuilder(ENABLE_LOGGING_MESSAGE);
+        String text = LogFormat.sanitize(message);
+        if (!text.isEmpty()) {
+            reminder.append(" Last skipped diagnostic: ").append(text);
+        }
+        return reminder.toString();
+    }
+
     private static void logToLogcat(String level, String tag, String message, Throwable throwable) {
-        String logcatTag = tag == null || tag.isEmpty() ? LOGCAT_TAG : LOGCAT_TAG + "/" + tag;
+        String logcatTag = logcatTag(tag);
         String text = LogFormat.sanitize(message);
         if ("E".equals(level)) {
             Log.e(logcatTag, text, throwable);
@@ -171,6 +201,10 @@ public final class Logger {
         } else {
             Log.i(logcatTag, text, throwable);
         }
+    }
+
+    private static String logcatTag(String tag) {
+        return tag == null || tag.isEmpty() ? LOGCAT_TAG : LOGCAT_TAG + "/" + tag;
     }
 
     private static void appendToFile(String entry) {

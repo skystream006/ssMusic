@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_LAST_URL = "last_url";
     private static final String KEY_LAST_POSITION_URL = "last_position_url";
     private static final String KEY_LAST_POSITION_SECONDS = "last_position_seconds";
+    private static final String KEY_SHOW_VIDEO_THUMBNAIL = "show_video_thumbnail";
     private static final String LOG_FILE_PROVIDER_SUFFIX = ".logs";
     private static final int REQUEST_APP_PERMISSIONS = 1001;
     private static final int REQUEST_WEB_PERMISSIONS = 1002;
@@ -421,6 +422,144 @@ public class MainActivity extends AppCompatActivity {
                     + "report();"
                     + "})()";
 
+    /**
+     * Injects an in-page control for YouTube Music videos. The script overlays the current song
+     * thumbnail over the video when enabled, renders a toggle button near the player, and exposes
+     * {@code __ssmusicSetVideoThumbnailDefault} for native settings changes.
+     */
+    static String videoDisplayScript(boolean showThumbnailByDefault, String showThumbnailLabel,
+            String showVideoLabel, String thumbnailAltText) {
+        return "(function(){"
+                + "var DEFAULT=" + showThumbnailByDefault + ";"
+                + "var SHOW_THUMBNAIL_LABEL=" + jsStringLiteral(showThumbnailLabel) + ";"
+                + "var SHOW_VIDEO_LABEL=" + jsStringLiteral(showVideoLabel) + ";"
+                + "var THUMBNAIL_ALT=" + jsStringLiteral(thumbnailAltText) + ";"
+                + "var ROOT_ID='ssmusic-video-display-root';"
+                + "var COVER_ID='ssmusic-video-thumbnail-cover';"
+                + "var STYLE_ID='ssmusic-video-display-style';"
+                + "var scheduled=false;"
+                + "var observer=null;"
+                + "var observed=null;"
+                + "var showing=typeof window.__ssmusicVideoThumbnailDefault==='boolean'"
+                + "?window.__ssmusicVideoThumbnailDefault:DEFAULT;"
+                + "window.__ssmusicVideoThumbnailDefault=showing;"
+                + "function css(){"
+                + "if(document.getElementById(STYLE_ID)){return;}"
+                + "var style=document.createElement('style');"
+                + "style.id=STYLE_ID;"
+                + "style.textContent='#'+ROOT_ID+'{position:absolute!important;top:8px!important;right:8px!important;z-index:2147483647!important}'"
+                + "+' #'+ROOT_ID+' button{border:0!important;border-radius:999px!important;padding:8px 12px!important;background:rgba(0,0,0,.72)!important;color:#fff!important;font:500 13px sans-serif!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important}'"
+                + "+' #'+COVER_ID+'{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;background:#000!important;z-index:2147483646!important}';"
+                + "(document.head||document.documentElement).appendChild(style);"
+                + "}"
+                + "function player(){return document.querySelector('ytmusic-player-page #player,ytmusic-player-page .player,ytmusic-player,ytmusic-player-page')||document.body;}"
+                + "function video(){"
+                + "var nodes=document.querySelectorAll('video');"
+                + "for(var i=0;i<nodes.length;i++){"
+                + "var node=nodes[i];var rect=node.getBoundingClientRect();"
+                + "if((node.videoWidth>0&&node.videoHeight>0)||(rect.width>120&&rect.height>80)){return node;}"
+                + "}"
+                + "return null;"
+                + "}"
+                + "function thumbnail(){"
+                + "var selectors=['ytmusic-player-bar img.image','ytmusic-player-bar #thumbnail img',"
+                + "'ytmusic-player-bar .thumbnail img','ytmusic-player-bar ytmusic-thumbnail-renderer img',"
+                + "'.song-media-window img','ytmusic-player-page img.image','ytmusic-player-page ytmusic-thumbnail-renderer img'];"
+                + "for(var i=0;i<selectors.length;i++){"
+                + "var image=document.querySelector(selectors[i]);"
+                + "var src=image&&(image.currentSrc||image.src);"
+                + "if(src&&src.indexOf('data:')!==0){return src;}"
+                + "}"
+                + "return '';"
+                + "}"
+                + "function ensureRoot(host){"
+                + "var root=document.getElementById(ROOT_ID);"
+                + "if(!root){root=document.createElement('div');root.id=ROOT_ID;root.appendChild(document.createElement('button'));}"
+                + "if(root.parentNode!==host){host.appendChild(root);}"
+                + "return root;"
+                + "}"
+                + "function observe(){"
+                + "var target=player()||document.body||document.documentElement;"
+                + "if(observer&&observed===target){return;}"
+                + "if(observer){observer.disconnect();}"
+                + "observed=target;"
+                + "if(!observer){observer=new MutationObserver(function(){scheduleApply();});}"
+                + "observer.observe(observed,{childList:true,subtree:true});"
+                + "}"
+                + "function save(value){"
+                + "showing=value;window.__ssmusicVideoThumbnailDefault=value;"
+                + "if(window.ssmusicPlayback&&window.ssmusicPlayback.setVideoThumbnailDefault){"
+                + "window.ssmusicPlayback.setVideoThumbnailDefault(value);"
+                + "}"
+                + "apply();"
+                + "}"
+                + "function apply(){"
+                + "scheduled=false;"
+                + "if(observer){observer.disconnect();}"
+                + "css();"
+                + "var node=video();"
+                + "var cover=document.getElementById(COVER_ID);"
+                + "var root=document.getElementById(ROOT_ID);"
+                + "if(!node){if(cover){cover.remove();}if(root){root.remove();}observe();return;}"
+                + "var host=player();"
+                + "if(getComputedStyle(host).position==='static'){host.style.setProperty('position','relative','important');}"
+                + "root=ensureRoot(host);"
+                + "var button=root.querySelector('button');"
+                + "button.type='button';"
+                + "button.textContent=showing?SHOW_VIDEO_LABEL:SHOW_THUMBNAIL_LABEL;"
+                + "button.setAttribute('aria-pressed',showing?'true':'false');"
+                + "button.onclick=function(){save(!showing);};"
+                + "var src=thumbnail();"
+                + "if(showing&&src){"
+                + "if(!cover){cover=document.createElement('img');cover.id=COVER_ID;cover.alt=THUMBNAIL_ALT;}"
+                + "if(cover.src!==src){cover.src=src;}"
+                + "var videoHost=node.parentElement||host;"
+                + "if(getComputedStyle(videoHost).position==='static'){videoHost.style.setProperty('position','relative','important');}"
+                + "if(cover.parentNode!==videoHost){videoHost.appendChild(cover);}"
+                + "}else if(cover){cover.remove();}"
+                + "observe();"
+                + "}"
+                + "function scheduleApply(){if(scheduled){return;}scheduled=true;setTimeout(apply,100);}"
+                + "window.__ssmusicApplyVideoDisplay=apply;"
+                + "window.__ssmusicSetVideoThumbnailDefault=function(value){showing=!!value;window.__ssmusicVideoThumbnailDefault=showing;apply();};"
+                + "if(!window.__ssmusicVideoDisplayInstalled){"
+                + "window.__ssmusicVideoDisplayInstalled=true;"
+                + "document.addEventListener('play',scheduleApply,true);"
+                + "document.addEventListener('loadedmetadata',scheduleApply,true);"
+                + "document.addEventListener('yt-navigate-finish',function(){setTimeout(scheduleApply,300);},true);"
+                + "}"
+                + "apply();"
+                + "})()";
+    }
+
+    /**
+     * Escapes a Java string for safe insertion into single-quoted JavaScript string literals,
+     * including quotes, backslashes, newlines, and Unicode line/paragraph separators.
+     */
+    static String jsStringLiteral(String value) {
+        String safeValue = value == null ? "" : value;
+        StringBuilder result = new StringBuilder("'");
+        for (int i = 0; i < safeValue.length(); i++) {
+            char c = safeValue.charAt(i);
+            if (c == '\\' || c == '\'') {
+                result.append('\\').append(c);
+            } else if (c == '\n') {
+                result.append("\\n");
+            } else if (c == '\r') {
+                result.append("\\r");
+            } else if (c == '\u2028') {
+                result.append("\\u2028");
+            } else if (c == '\u2029') {
+                result.append("\\u2029");
+            } else if (c < 0x20) {
+                result.append(String.format(Locale.US, "\\u%04x", (int) c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.append('\'').toString();
+    }
+
     private final Handler logoInjectionHandler = new Handler(Looper.getMainLooper());
 
     private byte[] appLogoBytes;
@@ -645,6 +784,10 @@ public class MainActivity extends AppCompatActivity {
         return preferences.getBoolean(KEY_DESKTOP_MODE, false);
     }
 
+    private boolean isShowVideoThumbnailDefault() {
+        return preferences.getBoolean(KEY_SHOW_VIDEO_THUMBNAIL, false);
+    }
+
     private void showPreferences() {
         View content = getLayoutInflater().inflate(R.layout.dialog_preferences, null);
         TextView version = content.findViewById(R.id.app_version);
@@ -671,6 +814,13 @@ public class MainActivity extends AppCompatActivity {
             preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
             applyUserAgentForUrl(webView.getUrl());
             webView.reload();
+        });
+
+        Switch videoThumbnailSwitch = content.findViewById(R.id.video_thumbnail_switch);
+        videoThumbnailSwitch.setChecked(isShowVideoThumbnailDefault());
+        videoThumbnailSwitch.setOnCheckedChangeListener((button, checked) -> {
+            Logger.event(TAG, "Video thumbnail default changed: " + checked);
+            setShowVideoThumbnailDefault(checked, true);
         });
 
         Switch loggingSwitch = content.findViewById(R.id.logging_switch);
@@ -710,6 +860,24 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         dialog.show();
+    }
+
+    /**
+     * Persists the video display default. {@code updatePage} is false when the page already owns
+     * the new state, which avoids echoing a page button click back through the JavaScript bridge.
+     */
+    private void setShowVideoThumbnailDefault(boolean showThumbnail, boolean updatePage) {
+        preferences.edit().putBoolean(KEY_SHOW_VIDEO_THUMBNAIL, showThumbnail).apply();
+        if (updatePage && playbackBridgeEnabled) {
+            String script = "(function(){"
+                    + "if(window.__ssmusicSetVideoThumbnailDefault){"
+                    + "window.__ssmusicSetVideoThumbnailDefault(" + showThumbnail + ");"
+                    + "}else{"
+                    + "window.__ssmusicVideoThumbnailDefault=" + showThumbnail + ";"
+                    + "}"
+                    + "})();";
+            webView.evaluateJavascript(script, null);
+        }
     }
 
     private void shareLog() {
@@ -852,6 +1020,10 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
+        view.evaluateJavascript(videoDisplayScript(isShowVideoThumbnailDefault(),
+                getString(R.string.show_thumbnail_button),
+                getString(R.string.show_video_button),
+                getString(R.string.video_thumbnail_alt)), null);
         scheduleAppLogoReinjection(view);
     }
 
@@ -1256,6 +1428,14 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void logDiagnostic(String message) {
             Logger.debug(TAG, "Bridge diagnostic: " + message);
+        }
+
+        @JavascriptInterface
+        public void setVideoThumbnailDefault(boolean showThumbnail) {
+            runOnUiThread(() -> {
+                Logger.event(TAG, "Video thumbnail default set from page: " + showThumbnail);
+                setShowVideoThumbnailDefault(showThumbnail, false);
+            });
         }
     }
 

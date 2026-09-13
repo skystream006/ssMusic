@@ -81,6 +81,29 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        android:text="@string/video_playback"
+        android:textStyle="bold" />
+
+    <Switch
+        android:id="@+id/video_thumbnail_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/show_thumbnail_for_videos_accessibility"
+        android:text="@string/show_thumbnail_for_videos"
+        tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:importantForAccessibility="no"
+        android:text="@string/show_thumbnail_for_videos_summary"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:text="@string/diagnostics"
         android:textStyle="bold" />
 
