@@ -7,9 +7,25 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - video display default for showing the song thumbnail instead of available video
 - back, forward, refresh, and home navigation
 - optional debug logging
+- a **Stats for nerds** overlay with live memory, network, and storage usage
 
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
 to the WebView from a synthetic same-origin path instead of the network.
+
+## Stats for nerds
+
+Enable **Stats for nerds** under **Diagnostics** in settings. The preference is saved, and
+the touch-through overlay stays above the app content but below settings, so playback and
+navigation remain usable. Settings can be scrolled on smaller screens.
+
+Memory shows the current app process's proportional set size (PSS), excluding isolated
+WebView renderer processes. Network shows download/upload rates for the app UID as reported
+by Android, which may exclude traffic attributed to isolated WebView processes. The first
+network sample and unsupported metrics display **Unavailable**, not a misleading zero.
+Memory and network refresh approximately every second while the app is visible.
+Storage counts app-private data and cache (including WebView storage), plus app-specific
+external files/cache, not the installed APK or device-wide usage. It refreshes approximately
+every 30 seconds on a worker thread. Sampling stops when disabled or the app is hidden.
 
 ## Logging
 

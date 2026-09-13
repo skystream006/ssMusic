@@ -19,6 +19,15 @@
     <string name="show_video_button">Play video</string>
     <string name="video_thumbnail_alt">Song thumbnail</string>
     <string name="diagnostics">Diagnostics</string>
+    <string name="stats_for_nerds">Stats for nerds</string>
+    <string name="stats_for_nerds_summary">Show live app-process memory, app network rates, and data/cache storage over the app, below settings.</string>
+    <string name="stats_for_nerds_accessibility">Stats for nerds. Show live memory, network, and storage usage over the app, below settings.</string>
+    <string name="stats_loading">Measuring…</string>
+    <string name="stats_unavailable">Unavailable</string>
+    <string name="stats_bytes_per_second">%1$s/s</string>
+    <string name="stats_memory">Memory (app process PSS): %1$s</string>
+    <string name="stats_network">Network (app UID): ↓ %1$s · ↑ %2$s</string>
+    <string name="stats_storage">Storage (data + cache): %1$s</string>
     <string name="enable_logging">Enable logging</string>
     <string name="enable_logging_summary">Record app activity and stack traces to a log file for debugging.</string>
     <string name="enable_logging_accessibility">Enable logging. Records app activity and stack traces to a log file for debugging.</string>

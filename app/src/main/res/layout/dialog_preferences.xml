@@ -108,6 +108,22 @@
         android:textStyle="bold" />
 
     <Switch
+        android:id="@+id/stats_for_nerds_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/stats_for_nerds_accessibility"
+        android:text="@string/stats_for_nerds"
+        tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:importantForAccessibility="no"
+        android:text="@string/stats_for_nerds_summary"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp" />
+
+    <Switch
         android:id="@+id/logging_switch"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
