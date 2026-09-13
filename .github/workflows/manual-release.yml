@@ -19,6 +19,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: main
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -26,24 +27,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Read Android version
+      - name: Build APK
+        run: ./gradlew test assembleDebug
+
+      - name: Read built APK version
         id: version
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import re
+          import json
           from pathlib import Path
 
-          text = Path("app/build.gradle").read_text()
-          name_match = re.search(r'versionName\s+"(\d+)\.(\d{2})\.(\d{2})"', text)
-          if not name_match:
-              raise SystemExit("versionName must use xx.yy.zz format, for example 0.01.01")
-
-          major, minor, patch = map(int, name_match.groups())
-          print(f"version_name={major}.{minor:02d}.{patch:02d}")
+          metadata = json.loads(Path("app/build/outputs/apk/debug/output-metadata.json").read_text())
+          apk, = metadata["elements"]
+          print(f"version_code={apk['versionCode']}")
+          print(f"version_name={apk['versionName']}")
           PY
-
-      - name: Build APK
-        run: ./gradlew test assembleDebug
 
       - name: Rename APK
         env:

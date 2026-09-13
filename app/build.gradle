@@ -2,6 +2,26 @@ plugins {
     id 'com.android.application'
 }
 
+def gitOutput = { List<String> arguments ->
+    providers.exec {
+        workingDir rootDir
+        commandLine(['git'] + arguments)
+    }.standardOutput.asText.get().trim()
+}
+
+if (gitOutput(['rev-parse', '--is-shallow-repository']) == 'true') {
+    throw new GradleException('Versioning requires full Git history; run git fetch --unshallow.')
+}
+
+// The commit that published 0.10.02 (versionCode 36). Keep this baseline fixed.
+def versionBaseline = '912b5f1593326662f5986a33f61bf3425b8e6822'
+gitOutput(['merge-base', '--is-ancestor', versionBaseline, 'HEAD'])
+def versionIncrement = gitOutput(['rev-list', '--first-parent', '--count',
+        "${versionBaseline}..HEAD"]).toInteger()
+def versionNumber = 1002 + versionIncrement
+def computedVersionName = String.format(Locale.ROOT, '%d.%02d.%02d',
+        versionNumber.intdiv(10000), versionNumber.intdiv(100) % 100, versionNumber % 100)
+
 android {
     namespace 'com.skystream.ssmusic'
     compileSdk 34
@@ -14,8 +34,8 @@ android {
         applicationId "com.skystream.ssmusic"
         minSdk 21
         targetSdk 34
-        versionCode 36
-        versionName "0.10.02"
+        versionCode 36 + versionIncrement
+        versionName computedVersionName
     }
 
     signingConfigs {
