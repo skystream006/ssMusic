@@ -61,9 +61,10 @@ public class PlaybackKeepAliveService extends Service {
     private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
         Logger.event(TAG, "Audio focus changed: " + audioFocusChangeLabel(focusChange));
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-            // A permanent loss (another app took over playback) should not auto-resume.
-            hasAudioFocus = false;
+            // A permanent loss (another app took over playback) should not auto-resume; release
+            // the framework-held focus request too so internal state stays consistent.
             pausedByTransientFocusLoss = false;
+            abandonAudioFocus();
             if (playing) {
                 Logger.event(TAG, "Pausing playback due to permanent audio focus loss");
                 handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
