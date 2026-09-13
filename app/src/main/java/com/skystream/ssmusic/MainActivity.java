@@ -422,12 +422,17 @@ public class MainActivity extends AppCompatActivity {
                     + "report();"
                     + "})()";
 
-    static String videoDisplayScript(boolean showThumbnailByDefault) {
+    static String videoDisplayScript(boolean showThumbnailByDefault, String showThumbnailLabel,
+            String showVideoLabel, String thumbnailAltText) {
         return "(function(){"
                 + "var DEFAULT=" + showThumbnailByDefault + ";"
+                + "var SHOW_THUMBNAIL_LABEL=" + jsStringLiteral(showThumbnailLabel) + ";"
+                + "var SHOW_VIDEO_LABEL=" + jsStringLiteral(showVideoLabel) + ";"
+                + "var THUMBNAIL_ALT=" + jsStringLiteral(thumbnailAltText) + ";"
                 + "var ROOT_ID='ssmusic-video-display-root';"
                 + "var COVER_ID='ssmusic-video-thumbnail-cover';"
                 + "var STYLE_ID='ssmusic-video-display-style';"
+                + "var scheduled=false;"
                 + "var showing=typeof window.__ssmusicVideoThumbnailDefault==='boolean'"
                 + "?window.__ssmusicVideoThumbnailDefault:DEFAULT;"
                 + "window.__ssmusicVideoThumbnailDefault=showing;"
@@ -474,40 +479,66 @@ public class MainActivity extends AppCompatActivity {
                 + "apply();"
                 + "}"
                 + "function apply(){"
+                + "scheduled=false;"
                 + "css();"
                 + "var node=video();"
-                + "var old=document.getElementById(COVER_ID);"
+                + "var cover=document.getElementById(COVER_ID);"
                 + "var root=document.getElementById(ROOT_ID);"
-                + "if(!node){if(old){old.remove();}if(root){root.remove();}return;}"
+                + "if(!node){if(cover){cover.remove();}if(root){root.remove();}return;}"
                 + "var host=player();"
                 + "if(getComputedStyle(host).position==='static'){host.style.setProperty('position','relative','important');}"
                 + "root=ensureRoot(host);"
                 + "var button=root.querySelector('button');"
                 + "button.type='button';"
-                + "button.textContent=showing?'Play video':'Show thumbnail';"
+                + "button.textContent=showing?SHOW_VIDEO_LABEL:SHOW_THUMBNAIL_LABEL;"
                 + "button.setAttribute('aria-pressed',showing?'true':'false');"
                 + "button.onclick=function(){save(!showing);};"
                 + "var src=thumbnail();"
                 + "if(showing&&src){"
-                + "if(!old){old=document.createElement('img');old.id=COVER_ID;old.alt='Song thumbnail';}"
-                + "if(old.src!==src){old.src=src;}"
+                + "if(!cover){cover=document.createElement('img');cover.id=COVER_ID;cover.alt=THUMBNAIL_ALT;}"
+                + "if(cover.src!==src){cover.src=src;}"
                 + "var videoHost=node.parentElement||host;"
                 + "if(getComputedStyle(videoHost).position==='static'){videoHost.style.setProperty('position','relative','important');}"
-                + "if(old.parentNode!==videoHost){videoHost.appendChild(old);}"
-                + "}else if(old){old.remove();}"
+                + "if(cover.parentNode!==videoHost){videoHost.appendChild(cover);}"
+                + "}else if(cover){cover.remove();}"
                 + "}"
+                + "function scheduleApply(){if(scheduled){return;}scheduled=true;setTimeout(apply,100);}"
                 + "window.__ssmusicApplyVideoDisplay=apply;"
                 + "window.__ssmusicSetVideoThumbnailDefault=function(value){showing=!!value;window.__ssmusicVideoThumbnailDefault=showing;apply();};"
                 + "if(!window.__ssmusicVideoDisplayInstalled){"
                 + "window.__ssmusicVideoDisplayInstalled=true;"
-                + "document.addEventListener('play',apply,true);"
-                + "document.addEventListener('loadedmetadata',apply,true);"
-                + "document.addEventListener('yt-navigate-finish',function(){setTimeout(apply,300);},true);"
-                + "new MutationObserver(function(){apply();}).observe(document.documentElement,{childList:true,subtree:true});"
+                + "document.addEventListener('play',scheduleApply,true);"
+                + "document.addEventListener('loadedmetadata',scheduleApply,true);"
+                + "document.addEventListener('yt-navigate-finish',function(){setTimeout(scheduleApply,300);},true);"
+                + "new MutationObserver(function(){scheduleApply();}).observe(document.documentElement,{childList:true,subtree:true});"
                 + "setInterval(apply,3000);"
                 + "}"
                 + "apply();"
                 + "})()";
+    }
+
+    static String jsStringLiteral(String value) {
+        String safeValue = value == null ? "" : value;
+        StringBuilder result = new StringBuilder("'");
+        for (int i = 0; i < safeValue.length(); i++) {
+            char c = safeValue.charAt(i);
+            if (c == '\\' || c == '\'') {
+                result.append('\\').append(c);
+            } else if (c == '\n') {
+                result.append("\\n");
+            } else if (c == '\r') {
+                result.append("\\r");
+            } else if (c == '\u2028') {
+                result.append("\\u2028");
+            } else if (c == '\u2029') {
+                result.append("\\u2029");
+            } else if (c < 0x20) {
+                result.append(String.format(Locale.US, "\\u%04x", (int) c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.append('\'').toString();
     }
 
     private final Handler logoInjectionHandler = new Handler(Looper.getMainLooper());
@@ -770,7 +801,7 @@ public class MainActivity extends AppCompatActivity {
         videoThumbnailSwitch.setChecked(isShowVideoThumbnailDefault());
         videoThumbnailSwitch.setOnCheckedChangeListener((button, checked) -> {
             Logger.event(TAG, "Video thumbnail default changed: " + checked);
-            setShowVideoThumbnailDefault(checked);
+            setShowVideoThumbnailDefault(checked, true);
         });
 
         Switch loggingSwitch = content.findViewById(R.id.logging_switch);
@@ -812,9 +843,9 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void setShowVideoThumbnailDefault(boolean showThumbnail) {
+    private void setShowVideoThumbnailDefault(boolean showThumbnail, boolean updatePage) {
         preferences.edit().putBoolean(KEY_SHOW_VIDEO_THUMBNAIL, showThumbnail).apply();
-        if (playbackBridgeEnabled) {
+        if (updatePage && playbackBridgeEnabled) {
             String script = "(function(){"
                     + "if(window.__ssmusicSetVideoThumbnailDefault){"
                     + "window.__ssmusicSetVideoThumbnailDefault(" + showThumbnail + ");"
@@ -966,7 +997,10 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
-        view.evaluateJavascript(videoDisplayScript(isShowVideoThumbnailDefault()), null);
+        view.evaluateJavascript(videoDisplayScript(isShowVideoThumbnailDefault(),
+                getString(R.string.show_thumbnail_button),
+                getString(R.string.show_video_button),
+                getString(R.string.video_thumbnail_alt)), null);
         scheduleAppLogoReinjection(view);
     }
 
@@ -1377,7 +1411,7 @@ public class MainActivity extends AppCompatActivity {
         public void setVideoThumbnailDefault(boolean showThumbnail) {
             runOnUiThread(() -> {
                 Logger.event(TAG, "Video thumbnail default set from page: " + showThumbnail);
-                setShowVideoThumbnailDefault(showThumbnail);
+                setShowVideoThumbnailDefault(showThumbnail, false);
             });
         }
     }

@@ -40,20 +40,30 @@ public class MainActivityAppLogoTest {
 
     @Test
     public void videoDisplayScriptAddsToggleAndPersistsDefault() {
-        String script = MainActivity.videoDisplayScript(true);
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
         assertTrue(script.startsWith("(function("));
         assertTrue(script.contains("var DEFAULT=true"));
         assertTrue(script.contains("ssmusic-video-display-root"));
         assertTrue(script.contains("ssmusic-video-thumbnail-cover"));
-        assertTrue(script.contains("Show thumbnail"));
-        assertTrue(script.contains("Play video"));
+        assertTrue(script.contains("SHOW_THUMBNAIL_LABEL='Show thumbnail'"));
+        assertTrue(script.contains("SHOW_VIDEO_LABEL='Play video'"));
+        assertTrue(script.contains("THUMBNAIL_ALT='Song thumbnail'"));
         assertTrue(script.contains("setVideoThumbnailDefault"));
         assertTrue(script.contains("__ssmusicSetVideoThumbnailDefault"));
+        assertTrue(script.contains("new MutationObserver(function(){scheduleApply();})"));
     }
 
     @Test
     public void videoDisplayScriptCanDefaultToPlayingVideo() {
-        String script = MainActivity.videoDisplayScript(false);
+        String script = MainActivity.videoDisplayScript(
+                false, "Show thumbnail", "Play video", "Song thumbnail");
         assertTrue(script.contains("var DEFAULT=false"));
+    }
+
+    @Test
+    public void jsStringLiteralEscapesUnsafeCharacters() {
+        assertTrue(MainActivity.jsStringLiteral("Play 'video' \\ now\n")
+                .equals("'Play \\'video\\' \\\\ now\\n'"));
     }
 }
