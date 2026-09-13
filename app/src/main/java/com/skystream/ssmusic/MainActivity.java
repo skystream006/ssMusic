@@ -166,12 +166,18 @@ public class MainActivity extends AppCompatActivity {
                     + "var logos=document.querySelectorAll('ytmusic-logo');"
                     + "for(var i=0;i<logos.length;i++){paint(logos[i]);}"
                     + "}"
+                    + "var scheduled=false;"
+                    + "function schedule(){"
+                    + "if(scheduled){return;}"
+                    + "scheduled=true;"
+                    + "requestAnimationFrame(function(){scheduled=false;apply();});"
+                    + "}"
                     + "apply();"
                     + "if(window.__ssmusicAppLogoInstalled){return;}"
                     + "window.__ssmusicAppLogoInstalled=true;"
-                    + "new MutationObserver(apply).observe(document.documentElement,"
+                    + "new MutationObserver(schedule).observe(document.documentElement,"
                     + "{childList:true,subtree:true});"
-                    + "document.addEventListener('yt-navigate-finish',apply,true);"
+                    + "document.addEventListener('yt-navigate-finish',schedule,true);"
                     + "})()";
 
     static final String AD_JSON_PRUNE_SCRIPT =
@@ -718,6 +724,7 @@ public class MainActivity extends AppCompatActivity {
         return SiteScope.isPlaybackUrl(origin) || SiteScope.isGoogleAccountUrl(origin);
     }
 
+    /** Identifies the synthetic same-origin icon request served from the app's mipmap resources. */
     static boolean isAppLogoRequest(String url) {
         if (url == null) {
             return false;

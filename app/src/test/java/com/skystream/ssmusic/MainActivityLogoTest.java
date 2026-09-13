@@ -11,7 +11,8 @@ public class MainActivityLogoTest {
     public void replacesYoutubeMusicLogoWithAppIcon() {
         assertTrue(MainActivity.APP_LOGO_SCRIPT.contains("ytmusic-logo"));
         assertTrue(MainActivity.APP_LOGO_SCRIPT.contains(MainActivity.APP_LOGO_PATH));
-        assertTrue(MainActivity.APP_LOGO_SCRIPT.contains("MutationObserver"));
+        assertTrue(MainActivity.APP_LOGO_SCRIPT.contains("MutationObserver(schedule)"));
+        assertTrue(MainActivity.APP_LOGO_SCRIPT.contains("requestAnimationFrame"));
     }
 
     @Test
