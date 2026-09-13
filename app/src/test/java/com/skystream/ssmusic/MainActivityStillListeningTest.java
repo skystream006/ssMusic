@@ -40,6 +40,7 @@ public class MainActivityStillListeningTest {
         assertTrue(script.contains("if(window.__ssmusicStillListeningObserver||!document.documentElement){return;}"));
         assertTrue(script.contains("new MutationObserver(function(changes)"));
         assertTrue(script.contains("childList:true,subtree:true,attributes:true"));
+        assertTrue(script.contains("attributeOldValue:true"));
         assertTrue(script.contains("'disabled','aria-disabled'"));
         assertTrue(script.contains("document.addEventListener('pause',confirm,true)"));
         assertTrue(script.contains("document.addEventListener('visibilitychange',confirm)"));
@@ -53,7 +54,11 @@ public class MainActivityStillListeningTest {
     public void allowsReusedPromptsButDoesNotClickRepeatedlyWhileOpen() {
         String script = MainActivity.STILL_LISTENING_SCRIPT;
         assertTrue(script.contains("if(!visible(prompt)){confirmed.delete(prompt);}"));
-        assertTrue(script.contains("if(removed.contains(prompt)){confirmed.delete(prompt);}"));
+        assertTrue(script.contains("change.attributeName==='hidden'&&change.oldValue!==null"));
+        assertTrue(script.contains("change.attributeName==='aria-hidden'&&change.oldValue==='true'"));
+        assertTrue(script.contains("change.attributeName==='open'&&change.oldValue===null"));
+        assertTrue(script.contains("if(change.target.contains(prompt)){confirmed.delete(prompt);}"));
+        assertFalse(script.contains("removedNodes"));
         assertTrue(script.contains("confirmed.has(prompt)"));
         assertTrue(script.indexOf("confirmed.add(prompt)") < script.indexOf("button.click()"));
     }
