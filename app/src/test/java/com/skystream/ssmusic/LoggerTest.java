@@ -12,6 +12,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class LoggerTest {
     @Rule
@@ -37,6 +39,31 @@ public class LoggerTest {
     @Test(expected = IOException.class)
     public void currentLogReportsReadErrors() throws IOException {
         Logger.readLogFile(temporaryFolder.getRoot());
+    }
+
+    @Test
+    public void snapshotsStayOnTheSameFileQueueWhileLoggingIsDisabled() throws InterruptedException {
+        assertFalse(Logger.isEnabled());
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondFinished = new CountDownLatch(1);
+        Logger.readCurrentLog(null, (text, error) -> {
+            firstStarted.countDown();
+            try {
+                releaseFirst.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        try {
+            assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+            Logger.readCurrentLog(null, (text, error) -> secondFinished.countDown());
+            assertFalse(secondFinished.await(100, TimeUnit.MILLISECONDS));
+        } finally {
+            releaseFirst.countDown();
+        }
+        assertTrue(secondFinished.await(5, TimeUnit.SECONDS));
+        assertFalse(Logger.isEnabled());
     }
 
     @Test

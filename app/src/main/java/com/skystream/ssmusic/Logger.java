@@ -84,7 +84,6 @@ public final class Logger {
             event("Logger", "Logging disabled");
             enabled = false;
             enableLoggingReminderShown.set(false);
-            shutdownWriter();
         }
     }
 
@@ -125,12 +124,7 @@ public final class Logger {
     /** Reads a snapshot off the UI thread, after entries already queued on the writer. */
     public static synchronized void readCurrentLog(Context context, LogReadCallback callback) {
         File file = logFile(context);
-        ExecutorService executor = writer;
-        boolean temporary = executor == null;
-        if (temporary) {
-            executor = Executors.newSingleThreadExecutor();
-        }
-        executor.execute(() -> {
+        ensureWriter().execute(() -> {
             String text = "";
             IOException error = null;
             try {
@@ -140,9 +134,6 @@ public final class Logger {
             }
             callback.onRead(text, error);
         });
-        if (temporary) {
-            executor.shutdown();
-        }
     }
 
     static String readLogFile(File file) throws IOException {
@@ -180,11 +171,7 @@ public final class Logger {
         };
         // Delete on the writer thread so entries queued before the clear cannot be written
         // into the new file afterwards.
-        ExecutorService executor = enabled ? ensureWriter() : writer;
-        if (executor == null) {
-            delete.run();
-            return;
-        }
+        ExecutorService executor = ensureWriter();
         try {
             executor.execute(delete);
         } catch (RuntimeException e) {
@@ -286,9 +273,9 @@ public final class Logger {
             return executor;
         }
         synchronized (Logger.class) {
-            // Re-check under the lock so a concurrent disable cannot be undone by a log call
-            // that passed the enabled check just before the writer was shut down.
-            if (writer == null && enabled) {
+            // Keep one file queue even when logging is disabled, so reads and clears cannot
+            // overtake writes that were queued before the preference changed.
+            if (writer == null) {
                 writer = Executors.newSingleThreadExecutor(runnable -> {
                     Thread thread = new Thread(runnable, "ssmusic-logger");
                     thread.setDaemon(true);
@@ -296,17 +283,6 @@ public final class Logger {
                 });
             }
             return writer;
-        }
-    }
-
-    private static void shutdownWriter() {
-        ExecutorService executor;
-        synchronized (Logger.class) {
-            executor = writer;
-            writer = null;
-        }
-        if (executor != null) {
-            executor.shutdown();
         }
     }
 
