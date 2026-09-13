@@ -1223,7 +1223,8 @@ public class MainActivity extends AppCompatActivity {
                         clearHistoryAfterLoad = true;
                         webView.evaluateJavascript("(function(){"
                                 + "document.querySelectorAll('audio,video').forEach(function(media){media.pause();});"
-                                + "try{sessionStorage.removeItem('ssmusic.kid.playlist.v1');}catch(e){}"
+                                + "if(window.__ssmusicResetKidPlaylist){window.__ssmusicResetKidPlaylist();}"
+                                + "else{try{sessionStorage.removeItem('ssmusic.kid.playlist.v1');}catch(e){}}"
                                 + "})();", ignored -> {
                                     if (!isFinishing() && !isDestroyed()) {
                                         loadUrl(enabling ? KidModeNavigation.LIBRARY_URL : Preferences.homeUrl());

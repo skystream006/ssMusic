@@ -8,12 +8,15 @@
     var LIBRARY = 'https://music.youtube.com/library';
     var STORAGE_KEY = 'ssmusic.kid.playlist.v1';
     var selected = null;
+    var resetting = false;
     var scheduled = false;
     var changingAutoplay = false;
     var nativePlay = HTMLMediaElement.prototype.play;
     var SONG_ROWS = 'ytmusic-playlist-shelf-renderer ytmusic-responsive-list-item-renderer';
     var HIDDEN = 'ytmusic-settings-button,#mini-guide,ytmusic-search-box,ytmusic-menu-renderer,#automix';
     var LOGO = 'ytmusic-logo,.ytmusic-logo,ytmusic-nav-bar .logo,ytmusic-nav-bar #logo';
+    var NAV_BUTTONS = 'ytmusic-nav-bar button,ytmusic-nav-bar yt-icon-button,ytmusic-nav-bar tp-yt-paper-icon-button';
+    var TABS = '#tabsContainer [role="tab"],#tabsContainer tp-yt-paper-tab,#tabsContainer .tab-header';
 
     function listId(value) {
         return typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value) && !/^RD/i.test(value);
@@ -44,6 +47,12 @@
         }
     } catch (ignored) {}
 
+    var entry = url(location.href);
+    if (!entry || entry.pathname !== '/watch' || !allowed(entry)) {
+        selected = null;
+        remember();
+    }
+
     function remember() {
         try {
             if (selected) {
@@ -55,6 +64,13 @@
             }
         } catch (ignored) {}
     }
+
+    window.__ssmusicResetKidPlaylist = function () {
+        resetting = true;
+        selected = null;
+        remember();
+        stopPlayback();
+    };
 
     function allowed(target) {
         if (!target || target.origin !== 'https://music.youtube.com'
@@ -115,7 +131,7 @@
 
     function capturePlaylist() {
         var page = url(location.href);
-        if (!page || page.pathname !== '/playlist' || !allowed(page)) {
+        if (resetting || !page || page.pathname !== '/playlist' || !allowed(page)) {
             return;
         }
         var list = page.searchParams.get('list');
@@ -182,7 +198,9 @@
 
     function stopPlayback() {
         document.querySelectorAll('video,audio').forEach(function (media) {
-            media.autoplay = false;
+            if (media.autoplay) {
+                media.autoplay = false;
+            }
             if (!media.paused) {
                 media.pause();
             }
@@ -203,7 +221,7 @@
         }
     }
 
-    ['play', 'playing', 'timeupdate', 'loadedmetadata', 'durationchange', 'emptied'].forEach(function (name) {
+    ['play', 'playing', 'timeupdate', 'loadstart', 'loadedmetadata', 'durationchange', 'emptied'].forEach(function (name) {
         document.addEventListener(name, enforcePlayback, true);
     });
 
@@ -223,9 +241,33 @@
     }
 
     function hide(node) {
-        if (node.style.getPropertyValue('display') !== 'none') {
+        if (node.style.getPropertyValue('display') !== 'none'
+                || node.style.getPropertyPriority('display') !== 'important') {
             node.style.setProperty('display', 'none', 'important');
         }
+    }
+
+    function navButton(node) {
+        return node && !node.closest(LOGO) && !node.querySelector(LOGO);
+    }
+
+    function relatedTab(tab) {
+        var value = data(tab).tabRenderer || data(tab);
+        var endpoint = value.endpoint || value.navigationEndpoint || {};
+        var browse = endpoint.browseEndpoint || {};
+        var config = browse.browseEndpointContextSupportedConfigs || {};
+        var pageType = value.pageType
+            || (config.browseEndpointContextMusicConfig || {}).pageType;
+        if (pageType === 'MUSIC_PAGE_TYPE_TRACK_RELATED'
+                || /related/i.test(tab.getAttribute('tab-id') || tab.id || '')
+                || value.title === 'Related' || /^related$/i.test((tab.textContent || '').trim())) {
+            return true;
+        }
+        // YouTube Music orders player tabs as Up next, Lyrics, Related in every locale.
+        var siblings = tab.parentElement && Array.from(tab.parentElement.children).filter(function (node) {
+            return node.matches('[role="tab"],tp-yt-paper-tab,.tab-header');
+        });
+        return !!siblings && siblings.length === 3 && siblings[2] === tab;
     }
 
     function disableAutoplay() {
@@ -243,8 +285,12 @@
                             changingAutoplay = false;
                         }
                     }
-                    toggle.checked = false;
-                    toggle.disabled = true;
+                    if (toggle.checked !== false) {
+                        toggle.checked = false;
+                    }
+                    if (!toggle.disabled) {
+                        toggle.disabled = true;
+                    }
                     if (toggle.hasAttribute('checked')) {
                         toggle.removeAttribute('checked');
                     }
@@ -263,11 +309,13 @@
         scheduled = false;
         capturePlaylist();
         document.querySelectorAll(HIDDEN).forEach(hide);
-        document.querySelectorAll('ytmusic-nav-bar button,ytmusic-nav-bar yt-icon-button,ytmusic-nav-bar tp-yt-paper-icon-button')
+        document.querySelectorAll(NAV_BUTTONS)
             .forEach(function (button) {
-                if (!button.closest(LOGO) && !button.querySelector(LOGO)) {
+                if (navButton(button)) {
                     hide(button);
-                    button.disabled = true;
+                    if (!button.disabled) {
+                        button.disabled = true;
+                    }
                 }
             });
         document.querySelectorAll('ytmusic-logo a,a.logo,a.ytmusic-logo,a[href="/"],a[href="https://music.youtube.com/"]')
@@ -276,17 +324,17 @@
                     anchor.href = LIBRARY;
                 }
             });
-        document.querySelectorAll('#tabsContainer [role="tab"],#tabsContainer tp-yt-paper-tab,#tabsContainer .tab-header')
+        document.querySelectorAll(TABS)
             .forEach(function (tab) {
-                var value = data(tab).tabRenderer || data(tab);
-                if (/^related$/i.test((tab.textContent || '').trim())
-                        || value.title === 'Related' || tab.getAttribute('tab-id') === 'RELATED') {
+                if (relatedTab(tab)) {
                     hide(tab);
                 }
             });
         disableAutoplay();
         document.querySelectorAll('video,audio').forEach(function (media) {
-            media.autoplay = false;
+            if (media.autoplay) {
+                media.autoplay = false;
+            }
         });
         enforcePlayback();
         if (!allowed(url(location.href))) {
@@ -317,6 +365,12 @@
             return;
         }
         if (target.closest(HIDDEN)) {
+            cancel(event);
+            return;
+        }
+        var nav = target.closest(NAV_BUTTONS);
+        var tab = target.closest(TABS);
+        if (navButton(nav) || tab && relatedTab(tab)) {
             cancel(event);
             return;
         }
@@ -370,9 +424,19 @@
         .forEach(function (name) {
             document.addEventListener(name, function () { enforcePlayback(); schedule(); }, true);
         });
-    new MutationObserver(schedule).observe(document, {
+    new MutationObserver(function (changes) {
+        // Pause invalid autoplay/src changes in the mutation microtask, before deferred UI work.
+        if (changes.some(function (change) {
+            return change.type === 'childList' || change.attributeName === 'src'
+                || change.attributeName === 'autoplay';
+        })) {
+            enforcePlayback();
+        }
+        schedule();
+    }).observe(document, {
         childList: true, subtree: true, attributes: true,
-        attributeFilter: ['href', 'hidden', 'aria-hidden', 'checked', 'aria-checked', 'aria-pressed', 'selected']
+        attributeFilter: ['href', 'hidden', 'aria-hidden', 'checked', 'aria-checked', 'aria-pressed',
+            'selected', 'style', 'disabled', 'src', 'autoplay']
     });
     schedule();
 }());
