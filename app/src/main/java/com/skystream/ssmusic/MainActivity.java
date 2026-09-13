@@ -130,17 +130,20 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!apply()){setTimeout(apply,50);}"
                     + "})()";
 
-    /** Replaces the YouTube Music logo children with an overlay in light or shadow DOM. */
+    /** Synthetic same-origin path intercepted to serve the bundled launcher icon. */
     static final String APP_LOGO_PATH = "/ssmusic_app_logo.png";
 
+    /** Replaces the YouTube Music logo children with an overlay in light or shadow DOM. */
     static final String APP_LOGO_SCRIPT =
             "(function(){"
+                    + "if(window.__ssmusicAppLogoInstalled){return;}"
+                    + "window.__ssmusicAppLogoInstalled=true;"
                     + "var CLASS='ssmusic-app-logo-overlay';"
                     + "var SRC=location.origin+'" + APP_LOGO_PATH + "';"
                     + "function asArray(list){return Array.prototype.slice.call(list);}"
                     + "function paint(logo){"
                     + "var root=logo.shadowRoot||logo;"
-                    + "var host=root.host||root;"
+                    + "var host=logo;"
                     + "if(!root.querySelector||!host.style){return;}"
                     + "if(getComputedStyle(host).position==='static'){"
                     + "host.style.setProperty('position','relative','important');"
@@ -178,8 +181,6 @@ public class MainActivity extends AppCompatActivity {
                     + "requestAnimationFrame(function(){scheduled=false;apply();});"
                     + "}"
                     + "apply();"
-                    + "if(window.__ssmusicAppLogoInstalled){return;}"
-                    + "window.__ssmusicAppLogoInstalled=true;"
                     + "new MutationObserver(schedule).observe(document.documentElement,"
                     + "{childList:true,subtree:true});"
                     + "document.addEventListener('yt-navigate-finish',schedule,true);"
@@ -317,6 +318,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private ImageButton settingsButton;
     private SharedPreferences preferences;
+    private byte[] appLogoBytes;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
     private boolean usingDefaultUserAgent;
@@ -1159,19 +1161,30 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private WebResourceResponse appLogoResponse() {
-            Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
-            if (icon == null) {
-                return null;
-            }
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            try {
-                if (!icon.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+            byte[] bytes = appLogoBytes();
+            return bytes == null ? null : new WebResourceResponse("image/png", null,
+                    new ByteArrayInputStream(bytes));
+        }
+
+        private byte[] appLogoBytes() {
+            synchronized (MainActivity.this) {
+                if (appLogoBytes != null) {
+                    return appLogoBytes;
+                }
+                Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
+                if (icon == null) {
                     return null;
                 }
-                return new WebResourceResponse("image/png", null,
-                        new ByteArrayInputStream(output.toByteArray()));
-            } finally {
-                icon.recycle();
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                try {
+                    if (!icon.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        return null;
+                    }
+                    appLogoBytes = output.toByteArray();
+                    return appLogoBytes;
+                } finally {
+                    icon.recycle();
+                }
             }
         }
 
