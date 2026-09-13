@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_LAST_URL = "last_url";
     private static final String KEY_LAST_POSITION_URL = "last_position_url";
     private static final String KEY_LAST_POSITION_SECONDS = "last_position_seconds";
+    private static final String KEY_SHOW_VIDEO_THUMBNAIL = "show_video_thumbnail";
     private static final String LOG_FILE_PROVIDER_SUFFIX = ".logs";
     private static final int REQUEST_APP_PERMISSIONS = 1001;
     private static final int REQUEST_WEB_PERMISSIONS = 1002;
@@ -421,6 +422,94 @@ public class MainActivity extends AppCompatActivity {
                     + "report();"
                     + "})()";
 
+    static String videoDisplayScript(boolean showThumbnailByDefault) {
+        return "(function(){"
+                + "var DEFAULT=" + showThumbnailByDefault + ";"
+                + "var ROOT_ID='ssmusic-video-display-root';"
+                + "var COVER_ID='ssmusic-video-thumbnail-cover';"
+                + "var STYLE_ID='ssmusic-video-display-style';"
+                + "var showing=typeof window.__ssmusicVideoThumbnailDefault==='boolean'"
+                + "?window.__ssmusicVideoThumbnailDefault:DEFAULT;"
+                + "window.__ssmusicVideoThumbnailDefault=showing;"
+                + "function css(){"
+                + "if(document.getElementById(STYLE_ID)){return;}"
+                + "var style=document.createElement('style');"
+                + "style.id=STYLE_ID;"
+                + "style.textContent='#'+ROOT_ID+'{position:absolute!important;top:8px!important;right:8px!important;z-index:2147483647!important}'"
+                + "+' #'+ROOT_ID+' button{border:0!important;border-radius:999px!important;padding:8px 12px!important;background:rgba(0,0,0,.72)!important;color:#fff!important;font:500 13px sans-serif!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important}'"
+                + "+' #'+COVER_ID+'{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;background:#000!important;z-index:2147483646!important}';"
+                + "(document.head||document.documentElement).appendChild(style);"
+                + "}"
+                + "function player(){return document.querySelector('ytmusic-player-page #player,ytmusic-player-page .player,ytmusic-player,ytmusic-player-page')||document.body;}"
+                + "function video(){"
+                + "var nodes=document.querySelectorAll('video');"
+                + "for(var i=0;i<nodes.length;i++){"
+                + "var node=nodes[i];var rect=node.getBoundingClientRect();"
+                + "if((node.videoWidth>0&&node.videoHeight>0)||(rect.width>120&&rect.height>80)){return node;}"
+                + "}"
+                + "return null;"
+                + "}"
+                + "function thumbnail(){"
+                + "var selectors=['ytmusic-player-bar img.image','ytmusic-player-bar #thumbnail img',"
+                + "'ytmusic-player-bar .thumbnail img','ytmusic-player-bar ytmusic-thumbnail-renderer img',"
+                + "'.song-media-window img','ytmusic-player-page img.image','ytmusic-player-page ytmusic-thumbnail-renderer img'];"
+                + "for(var i=0;i<selectors.length;i++){"
+                + "var image=document.querySelector(selectors[i]);"
+                + "var src=image&&(image.currentSrc||image.src);"
+                + "if(src&&src.indexOf('data:')!==0){return src;}"
+                + "}"
+                + "return '';"
+                + "}"
+                + "function ensureRoot(host){"
+                + "var root=document.getElementById(ROOT_ID);"
+                + "if(!root){root=document.createElement('div');root.id=ROOT_ID;root.appendChild(document.createElement('button'));}"
+                + "if(root.parentNode!==host){host.appendChild(root);}"
+                + "return root;"
+                + "}"
+                + "function save(value){"
+                + "showing=value;window.__ssmusicVideoThumbnailDefault=value;"
+                + "if(window.ssmusicPlayback&&window.ssmusicPlayback.setVideoThumbnailDefault){"
+                + "window.ssmusicPlayback.setVideoThumbnailDefault(value);"
+                + "}"
+                + "apply();"
+                + "}"
+                + "function apply(){"
+                + "css();"
+                + "var node=video();"
+                + "var old=document.getElementById(COVER_ID);"
+                + "var root=document.getElementById(ROOT_ID);"
+                + "if(!node){if(old){old.remove();}if(root){root.remove();}return;}"
+                + "var host=player();"
+                + "if(getComputedStyle(host).position==='static'){host.style.setProperty('position','relative','important');}"
+                + "root=ensureRoot(host);"
+                + "var button=root.querySelector('button');"
+                + "button.type='button';"
+                + "button.textContent=showing?'Play video':'Show thumbnail';"
+                + "button.setAttribute('aria-pressed',showing?'true':'false');"
+                + "button.onclick=function(){save(!showing);};"
+                + "var src=thumbnail();"
+                + "if(showing&&src){"
+                + "if(!old){old=document.createElement('img');old.id=COVER_ID;old.alt='Song thumbnail';}"
+                + "if(old.src!==src){old.src=src;}"
+                + "var videoHost=node.parentElement||host;"
+                + "if(getComputedStyle(videoHost).position==='static'){videoHost.style.setProperty('position','relative','important');}"
+                + "if(old.parentNode!==videoHost){videoHost.appendChild(old);}"
+                + "}else if(old){old.remove();}"
+                + "}"
+                + "window.__ssmusicApplyVideoDisplay=apply;"
+                + "window.__ssmusicSetVideoThumbnailDefault=function(value){showing=!!value;window.__ssmusicVideoThumbnailDefault=showing;apply();};"
+                + "if(!window.__ssmusicVideoDisplayInstalled){"
+                + "window.__ssmusicVideoDisplayInstalled=true;"
+                + "document.addEventListener('play',apply,true);"
+                + "document.addEventListener('loadedmetadata',apply,true);"
+                + "document.addEventListener('yt-navigate-finish',function(){setTimeout(apply,300);},true);"
+                + "new MutationObserver(function(){apply();}).observe(document.documentElement,{childList:true,subtree:true});"
+                + "setInterval(apply,3000);"
+                + "}"
+                + "apply();"
+                + "})()";
+    }
+
     private final Handler logoInjectionHandler = new Handler(Looper.getMainLooper());
 
     private byte[] appLogoBytes;
@@ -645,6 +734,10 @@ public class MainActivity extends AppCompatActivity {
         return preferences.getBoolean(KEY_DESKTOP_MODE, false);
     }
 
+    private boolean isShowVideoThumbnailDefault() {
+        return preferences.getBoolean(KEY_SHOW_VIDEO_THUMBNAIL, false);
+    }
+
     private void showPreferences() {
         View content = getLayoutInflater().inflate(R.layout.dialog_preferences, null);
         TextView version = content.findViewById(R.id.app_version);
@@ -671,6 +764,13 @@ public class MainActivity extends AppCompatActivity {
             preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
             applyUserAgentForUrl(webView.getUrl());
             webView.reload();
+        });
+
+        Switch videoThumbnailSwitch = content.findViewById(R.id.video_thumbnail_switch);
+        videoThumbnailSwitch.setChecked(isShowVideoThumbnailDefault());
+        videoThumbnailSwitch.setOnCheckedChangeListener((button, checked) -> {
+            Logger.event(TAG, "Video thumbnail default changed: " + checked);
+            setShowVideoThumbnailDefault(checked);
         });
 
         Switch loggingSwitch = content.findViewById(R.id.logging_switch);
@@ -710,6 +810,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         dialog.show();
+    }
+
+    private void setShowVideoThumbnailDefault(boolean showThumbnail) {
+        preferences.edit().putBoolean(KEY_SHOW_VIDEO_THUMBNAIL, showThumbnail).apply();
+        if (playbackBridgeEnabled) {
+            String script = "(function(){"
+                    + "if(window.__ssmusicSetVideoThumbnailDefault){"
+                    + "window.__ssmusicSetVideoThumbnailDefault(" + showThumbnail + ");"
+                    + "}else{"
+                    + "window.__ssmusicVideoThumbnailDefault=" + showThumbnail + ";"
+                    + "}"
+                    + "})();";
+            webView.evaluateJavascript(script, null);
+        }
     }
 
     private void shareLog() {
@@ -852,6 +966,7 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
+        view.evaluateJavascript(videoDisplayScript(isShowVideoThumbnailDefault()), null);
         scheduleAppLogoReinjection(view);
     }
 
@@ -1256,6 +1371,14 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void logDiagnostic(String message) {
             Logger.debug(TAG, "Bridge diagnostic: " + message);
+        }
+
+        @JavascriptInterface
+        public void setVideoThumbnailDefault(boolean showThumbnail) {
+            runOnUiThread(() -> {
+                Logger.event(TAG, "Video thumbnail default set from page: " + showThumbnail);
+                setShowVideoThumbnailDefault(showThumbnail);
+            });
         }
     }
 

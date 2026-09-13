@@ -11,6 +11,10 @@
     <string name="site_mode">Site mode</string>
     <string name="site_mode_mobile">Mobile site</string>
     <string name="site_mode_desktop">Desktop site</string>
+    <string name="video_playback">Video playback</string>
+    <string name="show_thumbnail_for_videos">Show song thumbnail for videos</string>
+    <string name="show_thumbnail_for_videos_summary">Use the song thumbnail instead of video by default when a video is available.</string>
+    <string name="show_thumbnail_for_videos_accessibility">Show song thumbnail instead of video by default when a video is available.</string>
     <string name="diagnostics">Diagnostics</string>
     <string name="enable_logging">Enable logging</string>
     <string name="enable_logging_summary">Record app activity and stack traces to a log file for debugging.</string>

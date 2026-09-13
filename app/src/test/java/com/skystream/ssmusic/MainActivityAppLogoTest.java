@@ -37,4 +37,23 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains(MainActivity.APP_LOGO_PATH));
         assertTrue(script.contains("location.origin"));
     }
+
+    @Test
+    public void videoDisplayScriptAddsToggleAndPersistsDefault() {
+        String script = MainActivity.videoDisplayScript(true);
+        assertTrue(script.startsWith("(function("));
+        assertTrue(script.contains("var DEFAULT=true"));
+        assertTrue(script.contains("ssmusic-video-display-root"));
+        assertTrue(script.contains("ssmusic-video-thumbnail-cover"));
+        assertTrue(script.contains("Show thumbnail"));
+        assertTrue(script.contains("Play video"));
+        assertTrue(script.contains("setVideoThumbnailDefault"));
+        assertTrue(script.contains("__ssmusicSetVideoThumbnailDefault"));
+    }
+
+    @Test
+    public void videoDisplayScriptCanDefaultToPlayingVideo() {
+        String script = MainActivity.videoDisplayScript(false);
+        assertTrue(script.contains("var DEFAULT=false"));
+    }
 }
