@@ -446,10 +446,13 @@ public class MainActivity extends AppCompatActivity {
                 + "var hidden=null;"
                 + "var hiddenOpacity='';"
                 + "var hiddenPriority='';"
+                // Require a deliberate, mostly single-axis swipe so ordinary taps and scrolling do
+                // not accidentally minimize or change tracks.
                 + "var DRAG_SLOP_PX=16;"
                 + "var DRAG_MINIMIZE_PX=80;"
                 + "var DRAG_NAVIGATE_PX=80;"
                 + "var DRAG_VERTICAL_RATIO=1.2;"
+                // YouTube Music owns these controls; update the selectors if its player DOM changes.
                 + "var MINIMIZE_BUTTON_SELECTOR='ytmusic-player-page tp-yt-paper-icon-button[aria-label=\"Minimize player\"],"
                 + "ytmusic-player-page tp-yt-paper-icon-button[title=\"Minimize player\"],"
                 + "ytmusic-player-page tp-yt-paper-icon-button[title=\"Down arrow\"],"
@@ -580,6 +583,7 @@ public class MainActivity extends AppCompatActivity {
                 + "var shouldNavigate=dragging&&Math.abs(dx)>DRAG_NAVIGATE_PX&&Math.abs(dx)>Math.abs(dy)*DRAG_VERTICAL_RATIO;"
                 + "reset();"
                 + "if(shouldMinimize){if(event.cancelable){event.preventDefault();}minimizePlayer();}"
+                // Match the requested media gesture mapping: left for previous, right for next.
                 + "else if(shouldNavigate){if(event.cancelable){event.preventDefault();}if(dx<0){previousSong();}else{nextSong();}}"
                 + "}"
                 + "node.addEventListener('touchstart',start,{passive:true});"
