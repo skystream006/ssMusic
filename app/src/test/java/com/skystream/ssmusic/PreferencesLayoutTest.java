@@ -45,20 +45,35 @@ public class PreferencesLayoutTest {
         for (String id : new String[]{"video_thumbnail_switch", "navigation_bar"}) {
             assertSame(advanced.getParentNode(), findById(layout, id).getParentNode());
         }
-        for (String id : new String[]{"theme_spinner", "site_mode_spinner",
-                "check_updates_button"}) {
+        for (String id : new String[]{"theme_spinner", "site_mode_spinner"}) {
             assertSame(advanced.getParentNode(), findById(layout, id).getParentNode().getParentNode());
         }
     }
 
     @Test
-    public void updateButtonPrecedesVersionInOneRow() throws Exception {
-        Document layout = readResource("layout/dialog_preferences.xml");
+    public void headerKeepsTitleLeftAndCompactUpdateControlsRight() throws Exception {
+        Document layout = readResource("layout/preferences_header.xml");
+        Element title = findById(layout, "preferences_title");
         Element button = findById(layout, "check_updates_button");
         Element version = findById(layout, "app_version");
-        assertHorizontalRow(button, version);
-        assertEquals("0dp", button.getAttributeNS(ANDROID, "layout_width"));
-        assertEquals("1", button.getAttributeNS(ANDROID, "layout_weight"));
+        Element controls = (Element) button.getParentNode();
+        assertSame(controls, version.getParentNode());
+        assertSame(layout.getDocumentElement(), title.getParentNode());
+        assertSame(title.getParentNode(), controls.getParentNode());
+        assertEquals("horizontal", layout.getDocumentElement().getAttributeNS(ANDROID, "orientation"));
+        assertEquals("match_parent", layout.getDocumentElement().getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("0dp", title.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("1", title.getAttributeNS(ANDROID, "layout_weight"));
+        assertEquals("start", title.getAttributeNS(ANDROID, "gravity"));
+        assertEquals("@string/preferences", title.getAttributeNS(ANDROID, "text"));
+        assertEquals("wrap_content", controls.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("end", controls.getAttributeNS(ANDROID, "gravity"));
+        assertEquals("vertical", controls.getAttributeNS(ANDROID, "orientation"));
+        assertEquals("wrap_content", button.getAttributeNS(ANDROID, "layout_width"));
+        assertFalse(button.hasAttributeNS(ANDROID, "layout_weight"));
+        assertEquals("0dp", button.getAttributeNS(ANDROID, "minWidth"));
+        assertEquals("48dp", button.getAttributeNS(ANDROID, "minHeight"));
+        assertEquals("false", button.getAttributeNS(ANDROID, "textAllCaps"));
         assertEquals("wrap_content", version.getAttributeNS(ANDROID, "layout_width"));
     }
 

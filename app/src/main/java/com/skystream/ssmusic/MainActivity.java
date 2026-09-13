@@ -927,9 +927,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void showPreferences() {
         View content = getLayoutInflater().inflate(R.layout.dialog_preferences, null);
-        TextView version = content.findViewById(R.id.app_version);
+        View header = getLayoutInflater().inflate(R.layout.preferences_header, null);
+        TextView version = header.findViewById(R.id.app_version);
         version.setText(getString(R.string.app_version_format, BuildConfig.VERSION_NAME));
-        content.findViewById(R.id.check_updates_button)
+        header.findViewById(R.id.check_updates_button)
                 .setOnClickListener(v -> appUpdater.checkForUpdates(true));
 
         Spinner themeSpinner = content.findViewById(R.id.theme_spinner);
@@ -1016,7 +1017,7 @@ public class MainActivity extends AppCompatActivity {
         ScrollView scrollView = new ScrollView(this);
         scrollView.addView(content);
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.preferences)
+                .setCustomTitle(header)
                 .setView(scrollView)
                 .create();
         content.findViewById(R.id.back_button).setOnClickListener(v -> {
