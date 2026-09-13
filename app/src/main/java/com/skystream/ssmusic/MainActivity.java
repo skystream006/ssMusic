@@ -33,6 +33,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ImageButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -71,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_LAST_POSITION_URL = "last_position_url";
     private static final String KEY_LAST_POSITION_SECONDS = "last_position_seconds";
     private static final String KEY_SHOW_VIDEO_THUMBNAIL = "show_video_thumbnail";
+    private static final String KEY_STATS_FOR_NERDS = "stats_for_nerds";
     private static final String LOG_FILE_PROVIDER_SUFFIX = ".logs";
     private static final int REQUEST_APP_PERMISSIONS = 1001;
     private static final int REQUEST_WEB_PERMISSIONS = 1002;
@@ -566,6 +568,8 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private ImageButton settingsButton;
+    private View statsOverlay;
+    private StatsMonitor statsMonitor;
     private SharedPreferences preferences;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
@@ -613,6 +617,9 @@ public class MainActivity extends AppCompatActivity {
         lastReportedPositionUrl = lastPersistedPositionIdentityUrl;
         lastReportedPositionSeconds = lastPersistedPositionSeconds;
         webView = findViewById(R.id.webview);
+        statsOverlay = findViewById(R.id.stats_overlay);
+        statsMonitor = new StatsMonitor(this, findViewById(R.id.stats_values));
+        setStatsForNerdsEnabled(preferences.getBoolean(KEY_STATS_FOR_NERDS, false));
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> {
             Logger.event(TAG, "Settings panel opened");
@@ -638,6 +645,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        statsMonitor.onStart();
         Logger.event(TAG, "App entering foreground, playback active: " + playbackActive);
     }
 
@@ -663,6 +671,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
+        statsMonitor.onStop();
         Logger.event(TAG, "App leaving foreground, playback active: " + playbackActive
                 + ", finishing: " + isFinishing() + ", changing configuration: "
                 + isChangingConfigurations());
@@ -679,6 +688,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         Logger.event(TAG, "onDestroy, finishing: " + isFinishing());
         logoInjectionHandler.removeCallbacksAndMessages(null);
+        statsMonitor.destroy();
         if (mediaCommandReceiverRegistered) {
             unregisterReceiver(mediaCommandReceiver);
             mediaCommandReceiverRegistered = false;
@@ -830,9 +840,18 @@ public class MainActivity extends AppCompatActivity {
         content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
         content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
 
+        Switch statsSwitch = content.findViewById(R.id.stats_for_nerds_switch);
+        statsSwitch.setChecked(preferences.getBoolean(KEY_STATS_FOR_NERDS, false));
+        statsSwitch.setOnCheckedChangeListener((button, checked) -> {
+            preferences.edit().putBoolean(KEY_STATS_FOR_NERDS, checked).apply();
+            setStatsForNerdsEnabled(checked);
+        });
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(content);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.preferences)
-                .setView(content)
+                .setView(scrollView)
                 .create();
         content.findViewById(R.id.back_button).setOnClickListener(v -> {
             dialog.dismiss();
@@ -860,6 +879,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         dialog.show();
+    }
+
+    private void setStatsForNerdsEnabled(boolean enabled) {
+        statsOverlay.setVisibility(enabled ? View.VISIBLE : View.GONE);
+        statsMonitor.setEnabled(enabled);
     }
 
     /**
