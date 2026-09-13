@@ -12,8 +12,8 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
 to the WebView from a synthetic same-origin path instead of the network.
 
-In the expanded media view, swipe down on the video area to minimize the player, left for
-the previous song, or right for the next song. These gestures also work while the song
+In the expanded media view, swipe down on the video area to minimize the player, up to
+open **Up next**, left for the previous song, or right for the next song. These gestures also work while the song
 thumbnail is shown. Taps and player controls retain their normal behavior.
 
 ## Stats for nerds
@@ -35,7 +35,8 @@ every 30 seconds on a worker thread. Sampling stops when disabled or the app is 
 
 Logging is off by default. Turn on **Enable logging** in the settings panel to record app
 activity — lifecycle events, navigation, permission decisions, blocked ad requests, playback
-state, media notification commands, and uncaught exceptions. Every entry names the calling
+state, media notification commands, media-player swipes (direction, action, and whether the
+control was clicked or unavailable), and uncaught exceptions. Every entry names the calling
 code, and warnings, errors, and crashes carry a full stack trace. Entries go to logcat and to
 a private log file (`files/logs/ssmusic.log`) that is rotated once it reaches 512 KB. Use
 **Share log** to send the file to another app and **Clear log** to delete it. Because the log

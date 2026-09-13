@@ -82,6 +82,40 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void videoDisplaySwipesLogCompletedActionsThroughDiagnosticBridge() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("function logSwipe(action,dispatched){try{"
+                + "if(window.ssmusicPlayback&&window.ssmusicPlayback.logDiagnostic){"));
+        assertTrue(script.contains("var command=action==='down'?'minimize'"
+                + ":action==='up'?'up next':action==='left'?'previous':'next';"));
+        assertTrue(script.contains("window.ssmusicPlayback.logDiagnostic("
+                + "'Media player swipe '+action+': '+command"
+                + "+(dispatched?' control clicked':' control unavailable'));"));
+        assertTrue(script.contains("}catch(e){}}function installSwipes()"));
+        assertTrue(script.contains("if(action!==gesture.action){return;}"
+                + "var control=swipeControl(action);if(control){control.click();}"
+                + "logSwipe(action,!!control);"));
+    }
+
+    @Test
+    public void videoDisplaySwipeUpOpensOnlyUpNextAndLogsItsAction() {
+        for (boolean showThumbnail : new boolean[]{true, false}) {
+            String script = MainActivity.videoDisplayScript(
+                    showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
+            assertTrue(script.contains("if(-dy>=threshold&&-dy>Math.abs(dx)*1.25){return 'up';}"));
+            assertTrue(script.contains(
+                    ":action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"));
+            assertTrue(script.contains(
+                    "for(var i=0;i<controls.length&&(action!=='up'||i===0);i++){"));
+            assertTrue(script.contains("if(action&&swipeControl(action)){swipe.action=action;}"));
+            assertTrue(script.contains(
+                    "var control=swipeControl(action);if(control){control.click();}logSwipe(action,!!control);"));
+            assertTrue(script.contains(":action==='up'?'up next':"));
+        }
+    }
+
+    @Test
     public void videoDisplaySwipesPreserveControlsAndRejectUnintendedGestures() {
         String script = MainActivity.videoDisplayScript(
                 false, "Show thumbnail", "Play video", "Song thumbnail");

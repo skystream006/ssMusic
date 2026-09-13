@@ -9,6 +9,14 @@ import org.junit.Test;
 public class LoggerTest {
 
     @Test
+    public void gestureDiagnosticsAreSilentWhenLoggingIsDisabled() {
+        assertFalse(Logger.isEnabled());
+        Logger.debug("MainActivity",
+                "Bridge diagnostic: Media player swipe left: previous control clicked");
+        assertFalse(Logger.isEnabled());
+    }
+
+    @Test
     public void enableLoggingReminderOnlyAppliesToProblems() {
         assertFalse(Logger.needsEnableLoggingReminder("D"));
         assertFalse(Logger.needsEnableLoggingReminder("I"));
