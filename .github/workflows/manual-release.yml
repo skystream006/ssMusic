@@ -1,0 +1,75 @@
+name: Manual Android Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manual-android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Read Android version
+        id: version
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import re
+          from pathlib import Path
+
+          text = Path("app/build.gradle").read_text()
+          name_match = re.search(r'versionName\s+"(\d+)\.(\d{2})\.(\d{2})"', text)
+          if not name_match:
+              raise SystemExit("versionName must use xx.yy.zz format, for example 0.01.01")
+
+          major, minor, patch = map(int, name_match.groups())
+          print(f"version_name={major}.{minor:02d}.{patch:02d}")
+          PY
+
+      - name: Build APK
+        run: ./gradlew test assembleDebug
+
+      - name: Rename APK
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: cp app/build/outputs/apk/debug/app-debug.apk "ssMusic-v${VERSION_NAME}.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: ssMusic-v${{ steps.version.outputs.version_name }}
+          path: ssMusic-v${{ steps.version.outputs.version_name }}.apk
+          if-no-files-found: error
+
+      - name: Publish latest GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: |
+          tag="v${VERSION_NAME}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists; leaving it unchanged. The rebuilt APK is available as a workflow artifact."
+            exit 0
+          fi
+          gh release create "$tag" "ssMusic-v${VERSION_NAME}.apk" \
+            --target "$(git rev-parse HEAD)" \
+            --title "ssMusic ${VERSION_NAME}" \
+            --generate-notes \
+            --latest
