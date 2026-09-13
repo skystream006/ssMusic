@@ -70,6 +70,7 @@ public class PlaybackKeepAliveService extends Service {
     private String thumbnailUrl;
     private Bitmap thumbnail;
     private int thumbnailRequestVersion;
+    private boolean destroyed;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService thumbnailExecutor = Executors.newSingleThreadExecutor();
 
@@ -77,6 +78,7 @@ public class PlaybackKeepAliveService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Logger.init(this);
         Logger.event(TAG, "onStartCommand, action: " + (intent == null ? null : intent.getAction()));
+        destroyed = false;
         createNotificationChannel();
         try {
             activateMediaSession();
@@ -135,6 +137,7 @@ public class PlaybackKeepAliveService extends Service {
     @Override
     public void onDestroy() {
         Logger.event(TAG, "onDestroy");
+        destroyed = true;
         // Let the activity know the notification is gone so it stops syncing state to a dead service.
         handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED, 0L, startToken);
         releaseWakeLock();
@@ -420,7 +423,8 @@ public class PlaybackKeepAliveService extends Service {
         thumbnailExecutor.execute(() -> {
             Bitmap bitmap = downloadThumbnail(url);
             mainHandler.post(() -> {
-                if (requestVersion != thumbnailRequestVersion || !stringEquals(thumbnailUrl, url)) {
+                if (destroyed || requestVersion != thumbnailRequestVersion
+                        || !stringEquals(thumbnailUrl, url)) {
                     return;
                 }
                 thumbnail = bitmap;
@@ -441,10 +445,15 @@ public class PlaybackKeepAliveService extends Service {
                 return null;
             }
             connection = (HttpURLConnection) requestedUrl.openConnection();
+            connection.setInstanceFollowRedirects(false);
             connection.setConnectTimeout(THUMBNAIL_TIMEOUT_MS);
             connection.setReadTimeout(THUMBNAIL_TIMEOUT_MS);
-            connection.connect();
+            int responseCode = connection.getResponseCode();
             if (!isAllowedThumbnailUrl(connection.getURL())) {
+                return null;
+            }
+            if (responseCode < HttpURLConnection.HTTP_OK
+                    || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
                 return null;
             }
             int contentLength = connection.getContentLength();
