@@ -34,6 +34,7 @@ public final class Logger {
 
     private static volatile Context appContext;
     private static volatile boolean enabled;
+    private static volatile boolean enableLoggingReminderShown;
     private static volatile ExecutorService writer;
     private static boolean crashHandlerInstalled;
 
@@ -78,6 +79,7 @@ public final class Logger {
         } else if (!value && enabled) {
             event("Logger", "Logging disabled");
             enabled = false;
+            enableLoggingReminderShown = false;
             shutdownWriter();
         }
     }
@@ -166,6 +168,12 @@ public final class Logger {
         if (!needsEnableLoggingReminder(level)) {
             return;
         }
+        synchronized (Logger.class) {
+            if (enableLoggingReminderShown) {
+                return;
+            }
+            enableLoggingReminderShown = true;
+        }
         Log.d(logcatTag(tag), enableLoggingReminder(level, tag, message));
     }
 
@@ -175,12 +183,9 @@ public final class Logger {
 
     static String enableLoggingReminder(String level, String tag, String message) {
         StringBuilder reminder = new StringBuilder(ENABLE_LOGGING_MESSAGE);
-        reminder.append(level == null ? "I" : level);
-        reminder.append('/');
-        reminder.append(tag == null || tag.isEmpty() ? LOGCAT_TAG : tag);
         String text = LogFormat.sanitize(message);
         if (!text.isEmpty()) {
-            reminder.append(": ").append(text);
+            reminder.append(text);
         }
         return reminder.toString();
     }

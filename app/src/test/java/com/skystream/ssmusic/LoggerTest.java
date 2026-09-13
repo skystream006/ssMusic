@@ -18,13 +18,13 @@ public class LoggerTest {
 
     @Test
     public void enableLoggingReminderNamesSuppressedDiagnostic() {
-        assertEquals("Enable logging in settings to capture diagnostics: W/Playback: paused",
+        assertEquals("Enable logging in settings to capture diagnostics: paused",
                 Logger.enableLoggingReminder("W", "Playback", "paused"));
     }
 
     @Test
     public void enableLoggingReminderUsesDefaultTagAndSanitizesMessage() {
-        assertEquals("Enable logging in settings to capture diagnostics: E/ssMusic: failed hard",
+        assertEquals("Enable logging in settings to capture diagnostics: failed hard",
                 Logger.enableLoggingReminder("E", null, " failed\nhard "));
     }
 }

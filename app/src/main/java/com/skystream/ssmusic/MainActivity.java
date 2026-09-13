@@ -483,7 +483,7 @@ public class MainActivity extends AppCompatActivity {
                 + "if(observer&&observed===target){return;}"
                 + "if(observer){observer.disconnect();}"
                 + "observed=target;"
-                + "observer=new MutationObserver(function(){scheduleApply();});"
+                + "if(!observer){observer=new MutationObserver(function(){scheduleApply();});}"
                 + "observer.observe(observed,{childList:true,subtree:true});"
                 + "}"
                 + "function save(value){"
@@ -495,7 +495,7 @@ public class MainActivity extends AppCompatActivity {
                 + "}"
                 + "function apply(){"
                 + "scheduled=false;"
-                + "if(observer){observer.disconnect();observer=null;observed=null;}"
+                + "if(observer){observer.disconnect();}"
                 + "css();"
                 + "var node=video();"
                 + "var cover=document.getElementById(COVER_ID);"
@@ -527,12 +527,15 @@ public class MainActivity extends AppCompatActivity {
                 + "document.addEventListener('play',scheduleApply,true);"
                 + "document.addEventListener('loadedmetadata',scheduleApply,true);"
                 + "document.addEventListener('yt-navigate-finish',function(){setTimeout(scheduleApply,300);},true);"
-                + "setInterval(scheduleApply,3000);"
                 + "}"
                 + "apply();"
                 + "})()";
     }
 
+    /**
+     * Escapes a Java string for safe insertion into single-quoted JavaScript string literals,
+     * including quotes, backslashes, newlines, and Unicode line/paragraph separators.
+     */
     static String jsStringLiteral(String value) {
         String safeValue = value == null ? "" : value;
         StringBuilder result = new StringBuilder("'");
