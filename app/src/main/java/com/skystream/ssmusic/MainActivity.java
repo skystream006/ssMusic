@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -42,6 +44,7 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -127,6 +130,7 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!apply()){setTimeout(apply,50);}"
                     + "})()";
 
+    /** Replaces the YouTube Music logo children with an overlay in light or shadow DOM. */
     static final String APP_LOGO_PATH = "/ssmusic_app_logo.png";
 
     static final String APP_LOGO_SCRIPT =
@@ -143,7 +147,8 @@ public class MainActivity extends AppCompatActivity {
                     + "}"
                     + "var children=asArray(root.children);"
                     + "for(var i=0;i<children.length;i++){"
-                    + "if(!children[i].classList.contains(CLASS)){"
+                    + "if(children[i].style&&(!children[i].classList"
+                    + "||!children[i].classList.contains(CLASS))){"
                     + "children[i].style.setProperty('opacity','0','important');"
                     + "}"
                     + "}"
@@ -1154,8 +1159,20 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private WebResourceResponse appLogoResponse() {
-            return new WebResourceResponse("image/png", null,
-                    getResources().openRawResource(R.mipmap.ic_launcher));
+            Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
+            if (icon == null) {
+                return null;
+            }
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try {
+                if (!icon.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    return null;
+                }
+                return new WebResourceResponse("image/png", null,
+                        new ByteArrayInputStream(output.toByteArray()));
+            } finally {
+                icon.recycle();
+            }
         }
 
         @Override
