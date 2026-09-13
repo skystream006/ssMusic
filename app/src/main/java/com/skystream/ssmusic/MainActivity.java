@@ -687,6 +687,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton settingsButton;
     private View statsOverlay;
     private StatsMonitor statsMonitor;
+    private AppUpdater appUpdater;
     private SharedPreferences preferences;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
@@ -736,6 +737,7 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         statsOverlay = findViewById(R.id.stats_overlay);
         statsMonitor = new StatsMonitor(this, findViewById(R.id.stats_values));
+        appUpdater = new AppUpdater(this);
         setStatsForNerdsEnabled(preferences.getBoolean(KEY_STATS_FOR_NERDS, false));
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> {
@@ -757,6 +759,9 @@ public class MainActivity extends AppCompatActivity {
                     ? Preferences.restoreUrl(preferences.getString(KEY_LAST_URL, null))
                     : target);
         }
+        if (savedInstanceState == null) {
+            appUpdater.checkForUpdates(false);
+        }
     }
 
     @Override
@@ -769,11 +774,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        appUpdater.onResume();
         Logger.debug(TAG, "App resumed and interactive");
     }
 
     @Override
     protected void onPause() {
+        appUpdater.onPause();
         super.onPause();
         Logger.debug(TAG, "App paused and no longer interactive");
     }
@@ -806,6 +813,7 @@ public class MainActivity extends AppCompatActivity {
         Logger.event(TAG, "onDestroy, finishing: " + isFinishing());
         logoInjectionHandler.removeCallbacksAndMessages(null);
         statsMonitor.destroy();
+        appUpdater.destroy();
         if (mediaCommandReceiverRegistered) {
             unregisterReceiver(mediaCommandReceiver);
             mediaCommandReceiverRegistered = false;
@@ -920,6 +928,8 @@ public class MainActivity extends AppCompatActivity {
         View content = getLayoutInflater().inflate(R.layout.dialog_preferences, null);
         TextView version = content.findViewById(R.id.app_version);
         version.setText(getString(R.string.app_version_format, BuildConfig.VERSION_NAME));
+        content.findViewById(R.id.check_updates_button)
+                .setOnClickListener(v -> appUpdater.checkForUpdates(true));
 
         RadioGroup themeGroup = content.findViewById(R.id.theme_group);
         int theme = preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM);

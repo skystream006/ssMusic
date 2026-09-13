@@ -6,6 +6,7 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - system, light, or dark app theme
 - video display default for showing the song thumbnail instead of available video
 - an **Open supported links** shortcut to Android's settings for handling `music.youtube.com` links
+- **Check for updates** using this repository's latest GitHub release
 - back, forward, refresh, and home navigation
 - optional debug logging
 - a **Stats for nerds** overlay with live memory, network, and storage usage
@@ -24,6 +25,19 @@ panel, enable the Android setting, and select `music.youtube.com` if prompted. A
 opens the app's link settings directly; older devices (or devices without that screen)
 open App info, where **Open by default** can be configured. Android requires user approval;
 the app cannot silently make itself the default link handler.
+
+## App updates
+
+On a fresh app launch, ssMusic checks GitHub for a newer stable release and shows
+**Update available to version {version}** when one exists. This automatic check does
+not download or install anything.
+
+Choose **Check for updates** in settings to check manually. If already current, a toast
+shows **App is up to date with latest version {version}**. If behind, the app downloads
+the release APK into its private storage and opens Android's installer. On Android 8+,
+allow installation from ssMusic if prompted, then return to the app to continue.
+Android requires your confirmation and a compatible signing key; updates are never
+installed silently. Checking and downloading require an internet connection.
 
 ## Stats for nerds
 
