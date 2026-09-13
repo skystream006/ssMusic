@@ -40,7 +40,9 @@ Only a salted, slow password verifier is stored in app-private preferences, not 
 The setting survives restarts. Keep the password safe: there is no in-app password recovery.
 
 While enabled, launches, incoming links, and Home open
-`https://music.youtube.com/library`. The page logo remains visible but is disabled
+`https://music.youtube.com/library`. A Home button overlays the upper-left corner
+only in Kid mode, letting you return to Library without opening Settings.
+The page logo remains visible but is disabled
 instead of redirecting. Open a playlist in the library before playing its songs.
 The page's settings/menu buttons, navigation buttons, mini guide, search box, and Related
 tab are removed. Autoplay is switched off and its section hidden and disabled.

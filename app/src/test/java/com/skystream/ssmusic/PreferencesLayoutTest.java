@@ -31,6 +31,26 @@ public class PreferencesLayoutTest {
     }
 
     @Test
+    public void kidModeHomeOverlaysUpperLeftWithAccessibleTouchTarget() throws Exception {
+        Document layout = readResource("layout/activity_main.xml");
+        Element button = findById(layout, "kid_mode_home_button");
+        assertSame(layout.getDocumentElement(), button.getParentNode());
+        assertEquals("ImageButton", button.getTagName());
+        assertEquals("top|left", button.getAttributeNS(ANDROID, "layout_gravity"));
+        assertEquals("16dp", button.getAttributeNS(ANDROID, "layout_margin"));
+        assertEquals("48dp", button.getAttributeNS(ANDROID, "layout_width"));
+        assertEquals("48dp", button.getAttributeNS(ANDROID, "layout_height"));
+        assertEquals("@string/home", button.getAttributeNS(ANDROID, "contentDescription"));
+        assertEquals("@drawable/ic_home", button.getAttributeNS(ANDROID, "src"));
+        assertEquals("#FFFFFF", button.getAttributeNS(ANDROID, "tint"));
+        assertEquals("gone", button.getAttributeNS(ANDROID, "visibility"));
+        assertEquals(Node.DOCUMENT_POSITION_FOLLOWING,
+                findById(layout, "webview").compareDocumentPosition(button));
+        assertEquals(Node.DOCUMENT_POSITION_FOLLOWING,
+                findById(layout, "stats_overlay").compareDocumentPosition(button));
+    }
+
+    @Test
     public void appearanceAndSiteModeUseLabeledDropdowns() throws Exception {
         Document layout = readResource("layout/dialog_preferences.xml");
         assertDropdown(layout, "theme_spinner", "@array/theme_options");

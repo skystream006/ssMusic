@@ -18,6 +18,27 @@ public class KidModePasswordDialogTest {
     }
 
     @Test
+    public void homeOverlayFollowsKidModeAtStartupAndAfterPasswordChanges() throws IOException {
+        String source = activity();
+        String startup = source.substring(source.indexOf("protected void onCreate("),
+                source.indexOf("protected void onStart("));
+        assertTrue(startup.contains("kidModeHomeButton = findViewById(R.id.kid_mode_home_button)"));
+        assertTrue(startup.contains(
+                "kidModeHomeButton.setOnClickListener(v -> loadUrl(KidModeNavigation.LIBRARY_URL))"));
+        assertTrue(startup.indexOf("kidModeHomeButton =") < startup.indexOf("configureWebView()"));
+        String configuration = source.substring(source.indexOf("private void configureWebView("),
+                source.indexOf("private boolean isKidModeEnabled("));
+        assertTrue(configuration.contains("updateKidModeScript()"));
+        String update = source.substring(source.indexOf("private void updateKidModeScript("),
+                source.indexOf("private String urlFromIntent("));
+        assertTrue(update.contains(
+                "kidModeHomeButton.setVisibility(isKidModeEnabled() ? View.VISIBLE : View.GONE)"));
+        String completion = source.substring(source.indexOf("String result = verifier;"),
+                source.indexOf("private void setKidModePasswordBusy"));
+        assertTrue(completion.indexOf("updateKidModeScript()") > completion.indexOf("if (!editor.commit())"));
+    }
+
+    @Test
     public void validSubmissionShowsLoadingBeforePasswordWork() throws IOException {
         String source = activity();
         String submission = source.substring(source.indexOf("private void showKidModePasswordDialog"),
