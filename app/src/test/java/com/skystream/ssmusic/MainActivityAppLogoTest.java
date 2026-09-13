@@ -108,7 +108,7 @@ public class MainActivityAppLogoTest {
                     ":action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"));
             assertTrue(script.contains(
                     "for(var i=0;i<controls.length&&(action!=='up'||i===0);i++){"));
-            assertTrue(script.contains("if(action&&swipeControl(action)){swipe.action=action;}"));
+            assertTrue(script.contains("if(action){swipe.action=action;}"));
             assertTrue(script.contains(
                     "var control=swipeControl(action);if(control){control.click();}logSwipe(action,!!control);"));
             assertTrue(script.contains(":action==='up'?'up next':"));
@@ -133,6 +133,37 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("control.getAttribute('aria-disabled')!=='true'"));
         assertTrue(script.contains("event.preventDefault();event.stopImmediatePropagation();"));
         assertTrue(script.contains("'touchcancel',function(){swipe=null;}"));
+    }
+
+    @Test
+    public void videoDisplaySwipesUseMediaSurfaceInsteadOfHiddenVideoBounds() {
+        for (boolean showThumbnail : new boolean[]{true, false}) {
+            String script = MainActivity.videoDisplayScript(
+                    showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
+            assertTrue(script.contains("ytmusic-player-page #movie_player"));
+            assertTrue(script.contains("ytmusic-player-page #song-image"));
+            assertTrue(script.contains("ytmusic-player-page #song-media-window"));
+            assertTrue(script.contains("ytmusic-player-page .song-media-window"));
+            assertTrue(script.contains("ytmusic-player-page ytmusic-player"));
+            assertTrue(script.contains("var node=target.closest(MEDIA_SELECTOR);var page=mediaPage(node);"));
+            assertFalse(script.contains("var node=video();var page=mediaPage(node);"));
+            assertTrue(script.contains("control&&control!==node;control=control.parentElement"));
+            assertTrue(script.contains("if(control.getAttribute('role')==='button'){return;}"));
+            assertFalse(script.contains("textarea,[role=\"button\"]"));
+        }
+    }
+
+    @Test
+    public void videoDisplaySwipesCaptureBeforePageHandlersAndPreventNativePanning() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("MEDIA_SELECTOR+'{touch-action:none!important}'"));
+        assertTrue(script.contains("window.addEventListener('touchstart'"));
+        assertTrue(script.contains("window.addEventListener('touchmove'"));
+        assertTrue(script.contains("window.addEventListener('touchend'"));
+        assertTrue(script.contains("window.addEventListener('touchcancel'"));
+        assertTrue(script.contains("},{capture:true,passive:false});"));
+        assertFalse(script.contains("if(action&&swipeControl(action))"));
     }
 
     @Test
