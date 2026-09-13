@@ -50,6 +50,7 @@ public class PlaybackKeepAliveService extends Service {
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
     private boolean hasAudioFocus;
+    private boolean pausedByTransientFocusLoss;
     private boolean playing = true;
     private long positionMs;
     private long durationMs;
@@ -59,20 +60,34 @@ public class PlaybackKeepAliveService extends Service {
 
     private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
         Logger.event(TAG, "Audio focus changed: " + audioFocusChangeLabel(focusChange));
-        if (focusChange == AudioManager.AUDIOFOCUS_LOSS
-                || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-            // A genuine external focus loss (call, another player, etc.) is the clearest
-            // possible signal for why playback stopped while backgrounded, so surface it and
-            // bring the WebView/notification state in line rather than silently drifting out
-            // of sync with what the system actually did to the audio stream.
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+            // A permanent loss (another app took over playback) should not auto-resume.
+            hasAudioFocus = false;
+            pausedByTransientFocusLoss = false;
+            if (playing) {
+                Logger.event(TAG, "Pausing playback due to permanent audio focus loss");
+                handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
+                setPlaying(false, true);
+            }
+        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
+                || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+            // No volume-ducking support exists elsewhere in the app, so a transient loss is
+            // treated the same as a full pause and resumed automatically once focus returns.
             hasAudioFocus = false;
             if (playing) {
-                Logger.event(TAG, "Pausing playback due to audio focus loss");
+                Logger.event(TAG, "Pausing playback due to transient audio focus loss");
+                pausedByTransientFocusLoss = true;
                 handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
                 setPlaying(false, true);
             }
         } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
             hasAudioFocus = true;
+            if (pausedByTransientFocusLoss) {
+                pausedByTransientFocusLoss = false;
+                Logger.event(TAG, "Resuming playback after transient audio focus regained");
+                handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
+                setPlaying(true, true);
+            }
         }
     };
 

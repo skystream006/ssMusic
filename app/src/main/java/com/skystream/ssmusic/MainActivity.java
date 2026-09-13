@@ -254,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
                     + "history.pushState=function(){var result=pushState.apply(this,arguments);scheduleReport();return result;};"
                     + "var replaceState=history.replaceState;"
                     + "history.replaceState=function(){var result=replaceState.apply(this,arguments);scheduleReport();return result;};"
-                    + "setInterval(report,5000);"
+                    + "setInterval(scheduleReport,5000);"
                     + "report();"
                     + "})()";
 
