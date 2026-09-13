@@ -17,6 +17,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.text.InputType;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -33,7 +35,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.AdapterView;
+import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -46,6 +50,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
+import androidx.webkit.ScriptHandler;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -53,6 +58,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -61,6 +68,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 /** Hosts a single Chromium-backed WebView for YouTube Music. */
@@ -690,6 +699,10 @@ public class MainActivity extends AppCompatActivity {
     private StatsMonitor statsMonitor;
     private AppUpdater appUpdater;
     private SharedPreferences preferences;
+    private final ExecutorService passwordExecutor = Executors.newSingleThreadExecutor();
+    private ScriptHandler kidModeScriptHandler;
+    private String kidModeScript;
+    private boolean clearHistoryAfterLoad;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
     private boolean usingDefaultUserAgent;
@@ -751,7 +764,9 @@ public class MainActivity extends AppCompatActivity {
         requestAppPermissions();
 
         String target = urlFromIntent(getIntent());
-        if (savedInstanceState != null && target == null) {
+        if (isKidModeEnabled()) {
+            loadUrl(KidModeNavigation.LIBRARY_URL);
+        } else if (savedInstanceState != null && target == null) {
             if (webView.restoreState(savedInstanceState) == null) {
                 loadUrl(Preferences.restoreUrl(preferences.getString(KEY_LAST_URL, null)));
             }
@@ -815,6 +830,7 @@ public class MainActivity extends AppCompatActivity {
         logoInjectionHandler.removeCallbacksAndMessages(null);
         statsMonitor.destroy();
         appUpdater.destroy();
+        passwordExecutor.shutdown();
         if (mediaCommandReceiverRegistered) {
             unregisterReceiver(mediaCommandReceiver);
             mediaCommandReceiverRegistered = false;
@@ -846,7 +862,7 @@ public class MainActivity extends AppCompatActivity {
         String target = urlFromIntent(intent);
         Logger.event(TAG, "onNewIntent, target: " + target);
         if (target != null) {
-            loadUrl(target);
+            loadUrl(isKidModeEnabled() ? KidModeNavigation.LIBRARY_URL : target);
         }
     }
 
@@ -907,6 +923,40 @@ public class MainActivity extends AppCompatActivity {
             origins.add("https://music.youtube.com");
             WebViewCompat.addDocumentStartJavaScript(
                     webView, BACKGROUND_PLAYBACK_SCRIPT, origins);
+        }
+        updateKidModeScript();
+    }
+
+    private boolean isKidModeEnabled() {
+        return preferences.contains(KidModePassword.PREFERENCE);
+    }
+
+    private String kidModeScript() {
+        if (kidModeScript == null) {
+            try (InputStream input = getAssets().open("kid_mode.js");
+                    ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                }
+                kidModeScript = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new IllegalStateException("Kid mode script unavailable", e);
+            }
+        }
+        return kidModeScript;
+    }
+
+    private void updateKidModeScript() {
+        if (kidModeScriptHandler != null) {
+            kidModeScriptHandler.remove();
+            kidModeScriptHandler = null;
+        }
+        if (isKidModeEnabled()
+                && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            kidModeScriptHandler = WebViewCompat.addDocumentStartJavaScript(
+                    webView, kidModeScript(), new HashSet<>(Arrays.asList("https://music.youtube.com")));
         }
     }
 
@@ -990,6 +1040,17 @@ public class MainActivity extends AppCompatActivity {
                     : R.string.advanced_expand_accessibility));
         });
 
+        Switch kidModeSwitch = content.findViewById(R.id.kid_mode_switch);
+        kidModeSwitch.setChecked(isKidModeEnabled());
+        kidModeSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (checked == isKidModeEnabled()) {
+                return;
+            }
+            // The displayed value remains the persisted state until password validation succeeds.
+            kidModeSwitch.setChecked(isKidModeEnabled());
+            showKidModePasswordDialog(kidModeSwitch);
+        });
+
         Switch videoThumbnailSwitch = content.findViewById(R.id.video_thumbnail_switch);
         videoThumbnailSwitch.setChecked(isShowVideoThumbnailDefault());
         videoThumbnailSwitch.setOnCheckedChangeListener((button, checked) -> {
@@ -1066,6 +1127,128 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void showKidModePasswordDialog(Switch toggle) {
+        boolean enabling = !isKidModeEnabled();
+        if (enabling && !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            Toast.makeText(this, R.string.kid_mode_webview_required, Toast.LENGTH_LONG).show();
+            return;
+        }
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        int padding = (int) (24 * getResources().getDisplayMetrics().density);
+        fields.setPadding(padding, 0, padding, 0);
+        EditText password = passwordField(R.string.kid_mode_password);
+        EditText confirmation = passwordField(R.string.kid_mode_confirm_password);
+        fields.addView(password);
+        if (enabling) {
+            fields.addView(confirmation);
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(enabling ? R.string.kid_mode_enable : R.string.kid_mode_unlock)
+                .setMessage(enabling ? R.string.kid_mode_setup_message : R.string.kid_mode_unlock_message)
+                .setView(fields)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        dialog.setOnDismissListener(d -> {
+            password.getText().clear();
+            confirmation.getText().clear();
+        });
+        dialog.setOnShowListener(d -> {
+            dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                if (password.length() == 0) {
+                    password.setError(getString(R.string.kid_mode_empty_password));
+                    return;
+                }
+                if (enabling && !TextUtils.equals(password.getText(), confirmation.getText())) {
+                    confirmation.setError(getString(R.string.kid_mode_password_mismatch));
+                    return;
+                }
+                char[] secret = new char[password.length()];
+                password.getText().getChars(0, password.length(), secret, 0);
+                String stored = preferences.getString(KidModePassword.PREFERENCE, null);
+                password.getText().clear();
+                confirmation.getText().clear();
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+                dialog.setCancelable(false);
+                passwordExecutor.execute(() -> {
+                    String verifier = null;
+                    int error = 0;
+                    try {
+                        if (enabling) {
+                            verifier = KidModePassword.create(secret);
+                        } else if (!KidModePassword.matches(secret, stored)) {
+                            error = R.string.kid_mode_wrong_password;
+                        }
+                    } catch (GeneralSecurityException e) {
+                        error = R.string.kid_mode_save_failed;
+                    } finally {
+                        Arrays.fill(secret, '\0');
+                    }
+                    String result = verifier;
+                    int failure = error;
+                    runOnUiThread(() -> {
+                        if (isFinishing() || isDestroyed() || !dialog.isShowing()) {
+                            return;
+                        }
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
+                        dialog.setCancelable(true);
+                        if (failure != 0) {
+                            password.setError(getString(failure));
+                            return;
+                        }
+                        SharedPreferences.Editor editor = preferences.edit();
+                        if (enabling) {
+                            editor.putString(KidModePassword.PREFERENCE, result);
+                        } else {
+                            editor.remove(KidModePassword.PREFERENCE);
+                        }
+                        if (!editor.commit()) {
+                            // SharedPreferences updates memory even when the disk write fails.
+                            if (stored == null) {
+                                preferences.edit().remove(KidModePassword.PREFERENCE).commit();
+                            } else {
+                                preferences.edit().putString(KidModePassword.PREFERENCE, stored).commit();
+                            }
+                            password.setError(getString(R.string.kid_mode_save_failed));
+                            return;
+                        }
+                        updateKidModeScript();
+                        toggle.setChecked(isKidModeEnabled());
+                        webView.stopLoading();
+                        webView.clearHistory();
+                        clearHistoryAfterLoad = true;
+                        webView.evaluateJavascript("(function(){"
+                                + "document.querySelectorAll('audio,video').forEach(function(media){media.pause();});"
+                                + "try{sessionStorage.removeItem('ssmusic.kid.playlist.v1');}catch(e){}"
+                                + "})();", ignored -> {
+                                    if (!isFinishing() && !isDestroyed()) {
+                                        loadUrl(enabling ? KidModeNavigation.LIBRARY_URL : Preferences.homeUrl());
+                                    }
+                                });
+                        dialog.dismiss();
+                    });
+                });
+            });
+        });
+        dialog.show();
+    }
+
+    private EditText passwordField(int hint) {
+        EditText field = new EditText(this);
+        field.setHint(hint);
+        field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        field.setSingleLine(true);
+        field.setSaveEnabled(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        }
+        return field;
+    }
+
     private void setStatsForNerdsEnabled(boolean enabled) {
         statsOverlay.setVisibility(enabled ? View.VISIBLE : View.GONE);
         statsMonitor.setEnabled(enabled);
@@ -1138,6 +1321,16 @@ public class MainActivity extends AppCompatActivity {
 
     private int historySteps(boolean forward) {
         WebBackForwardList list = webView.copyBackForwardList();
+        if (isKidModeEnabled()) {
+            int current = list.getCurrentIndex();
+            for (int i = current + (forward ? 1 : -1);
+                    i >= 0 && i < list.getSize(); i += forward ? 1 : -1) {
+                if (KidModeNavigation.isAllowed(list.getItemAtIndex(i).getUrl())) {
+                    return i - current;
+                }
+            }
+            return 0;
+        }
         List<String> urls = new ArrayList<>();
         for (int i = 0; i < list.getSize(); i++) {
             urls.add(list.getItemAtIndex(i).getUrl());
@@ -1223,6 +1416,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         Logger.debug(TAG, "Injecting page scripts");
+        if (isKidModeEnabled()) {
+            view.evaluateJavascript(kidModeScript(), null);
+        }
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
@@ -1315,6 +1511,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadUrl(String url) {
+        if (isKidModeEnabled()) {
+            if (kidModeScriptHandler == null) {
+                Toast.makeText(this, R.string.kid_mode_webview_required, Toast.LENGTH_LONG).show();
+                url = "about:blank";
+            } else if (!KidModeNavigation.isAllowed(url)) {
+                url = KidModeNavigation.LIBRARY_URL;
+            }
+        }
         Logger.event(TAG, "Loading url: " + url);
         prepareForUrl(url);
         webView.loadUrl(url);
@@ -1725,6 +1929,10 @@ public class MainActivity extends AppCompatActivity {
             persistLocation(url);
             settingsButton.setVisibility(View.VISIBLE);
             CookieManager.getInstance().flush();
+            if (clearHistoryAfterLoad) {
+                view.clearHistory();
+                clearHistoryAfterLoad = false;
+            }
         }
 
         @TargetApi(Build.VERSION_CODES.M)
@@ -1751,6 +1959,11 @@ public class MainActivity extends AppCompatActivity {
 
         private boolean handleUrl(WebView view, String url) {
             String normalized = SiteScope.normalizeInAppUrl(url);
+            if (isKidModeEnabled()
+                    && (kidModeScriptHandler == null || !KidModeNavigation.isAllowed(normalized))) {
+                loadUrl(KidModeNavigation.LIBRARY_URL);
+                return true;
+            }
             if (normalized == null) {
                 Logger.warn(TAG, "Blocked out-of-scope navigation: " + url, null);
                 return true;

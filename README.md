@@ -10,8 +10,9 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - back, forward, refresh, and home navigation
 - optional debug logging
 - a **Stats for nerds** overlay with live memory, network, and storage usage
+- password-protected **Kid mode** for playlist-only listening
 
-Supported links, logging, and Stats for nerds are grouped under **Advanced**, which starts
+Kid mode, supported links, logging, and Stats for nerds are grouped under **Advanced**, which starts
 collapsed whenever settings is opened. Tap **Advanced** to expand or collapse those controls.
 **View log**, **Share log**, and **Clear log** appear together in one row.
 
@@ -29,6 +30,27 @@ panel, enable the Android setting, and select `music.youtube.com` if prompted. A
 opens the app's link settings directly; older devices (or devices without that screen)
 open App info, where **Open by default** can be configured. Android requires user approval;
 the app cannot silently make itself the default link handler.
+
+## Kid mode
+
+Sign in first, then open **Settings → Advanced → Kid mode**. Enabling immediately asks
+you to choose and confirm a non-empty password. Cancelling leaves the mode unchanged.
+Turning it off requires that same password; an incorrect password keeps it locked.
+Only a salted, slow password verifier is stored in app-private preferences, not the password.
+The setting survives restarts. Keep the password safe: there is no in-app password recovery.
+
+While enabled, launches, incoming links, Home, and the page logo open
+`https://music.youtube.com/library`. Open a playlist there before playing its songs.
+The page's settings/menu buttons, navigation buttons, mini guide, search box, and Related
+tab are removed. Autoplay is switched off and its section hidden and disabled.
+Songs must be verified against the opened playlist, including when using notification
+controls or skipping tracks; radio mixes and standalone song links are not allowed.
+
+Kid mode requires a current Android System WebView with document-start script support.
+It is an app-level restriction, not a device parental-control or explicit-content filter:
+it does not rate songs, protect other apps, or prevent someone from clearing ssMusic's
+Android app data. Restrictions depend on YouTube Music's page structure; if playlist
+membership cannot be verified, playback is blocked rather than allowing an unknown song.
 
 ## App updates
 
