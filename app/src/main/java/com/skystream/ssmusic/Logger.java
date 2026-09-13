@@ -27,6 +27,8 @@ public final class Logger {
     static final String LOG_BACKUP_FILE_NAME = "ssmusic-previous.log";
 
     private static final String LOGCAT_TAG = "ssMusic";
+    private static final String ENABLE_LOGGING_MESSAGE =
+            "Enable logging in settings to capture diagnostics: ";
     private static final Charset UTF_8 = Charset.forName("UTF-8");
     private static final Object FILE_LOCK = new Object();
 
@@ -142,6 +144,7 @@ public final class Logger {
 
     private static void write(String level, String tag, String message, Throwable throwable) {
         if (!enabled) {
+            logEnableLoggingNeeded(level, tag, message);
             return;
         }
         StackTraceElement[] callerTrace = new Throwable().getStackTrace();
@@ -159,8 +162,31 @@ public final class Logger {
         }
     }
 
+    private static void logEnableLoggingNeeded(String level, String tag, String message) {
+        if (!needsEnableLoggingReminder(level)) {
+            return;
+        }
+        Log.d(logcatTag(tag), enableLoggingReminder(level, tag, message));
+    }
+
+    static boolean needsEnableLoggingReminder(String level) {
+        return "W".equals(level) || "E".equals(level);
+    }
+
+    static String enableLoggingReminder(String level, String tag, String message) {
+        StringBuilder reminder = new StringBuilder(ENABLE_LOGGING_MESSAGE);
+        reminder.append(level == null ? "I" : level);
+        reminder.append('/');
+        reminder.append(tag == null || tag.isEmpty() ? LOGCAT_TAG : tag);
+        String text = LogFormat.sanitize(message);
+        if (!text.isEmpty()) {
+            reminder.append(": ").append(text);
+        }
+        return reminder.toString();
+    }
+
     private static void logToLogcat(String level, String tag, String message, Throwable throwable) {
-        String logcatTag = tag == null || tag.isEmpty() ? LOGCAT_TAG : LOGCAT_TAG + "/" + tag;
+        String logcatTag = logcatTag(tag);
         String text = LogFormat.sanitize(message);
         if ("E".equals(level)) {
             Log.e(logcatTag, text, throwable);
@@ -171,6 +197,10 @@ public final class Logger {
         } else {
             Log.i(logcatTag, text, throwable);
         }
+    }
+
+    private static String logcatTag(String tag) {
+        return tag == null || tag.isEmpty() ? LOGCAT_TAG : LOGCAT_TAG + "/" + tag;
     }
 
     private static void appendToFile(String entry) {
