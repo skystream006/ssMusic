@@ -508,18 +508,27 @@ public class MainActivity extends AppCompatActivity {
         content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
         content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
 
-        content.findViewById(R.id.back_button).setOnClickListener(v -> goHistory(false));
-        content.findViewById(R.id.forward_button).setOnClickListener(v -> goHistory(true));
-        content.findViewById(R.id.refresh_button).setOnClickListener(v -> {
-            Logger.event(TAG, "Reload requested from settings");
-            webView.reload();
-        });
-        content.findViewById(R.id.home_button).setOnClickListener(v -> loadUrl(Preferences.homeUrl()));
-
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.preferences)
                 .setView(content)
                 .create();
+        content.findViewById(R.id.back_button).setOnClickListener(v -> {
+            dialog.dismiss();
+            goHistory(false);
+        });
+        content.findViewById(R.id.forward_button).setOnClickListener(v -> {
+            dialog.dismiss();
+            goHistory(true);
+        });
+        content.findViewById(R.id.refresh_button).setOnClickListener(v -> {
+            dialog.dismiss();
+            Logger.event(TAG, "Reload requested from settings");
+            webView.reload();
+        });
+        content.findViewById(R.id.home_button).setOnClickListener(v -> {
+            dialog.dismiss();
+            loadUrl(Preferences.homeUrl());
+        });
         dialog.setOnShowListener(d -> {
             Window shownWindow = dialog.getWindow();
             if (shownWindow != null) {
