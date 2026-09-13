@@ -577,6 +577,7 @@ public class MainActivity extends AppCompatActivity {
                 + "function swipeControl(action){"
                 + "var selector=action==='down'"
                 + "?'ytmusic-player-page .player-minimize-button,ytmusic-player-bar .player-minimize-button,"
+                + "ytmusic-player-page .collapse-button,ytmusic-player-bar .toggle-player-page-button,"
                 + "ytmusic-player-page [aria-label=\"Minimize player\"],ytmusic-player-page [title=\"Minimize player\"]'"
                 + ":action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"
                 + ":action==='left'"

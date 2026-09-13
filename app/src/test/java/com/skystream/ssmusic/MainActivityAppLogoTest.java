@@ -80,6 +80,25 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void videoDisplaySwipeDownSupportsMobileAndDesktopMinimizeControls() {
+        for (boolean showThumbnail : new boolean[]{true, false}) {
+            String script = MainActivity.videoDisplayScript(
+                    showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
+            assertTrue(script.contains("var selector=action==='down'"
+                    + "?'ytmusic-player-page .player-minimize-button,ytmusic-player-bar .player-minimize-button,"
+                    + "ytmusic-player-page .collapse-button,ytmusic-player-bar .toggle-player-page-button,"
+                    + "ytmusic-player-page [aria-label=\"Minimize player\"],ytmusic-player-page [title=\"Minimize player\"]'"));
+            int expandedPlayerGuard = script.indexOf("||!mediaPage(gesture.node)");
+            assertTrue(expandedPlayerGuard >= 0);
+            assertTrue(expandedPlayerGuard < script.indexOf("var control=swipeControl(action)"));
+            assertTrue(script.contains("!control.disabled&&!control.hasAttribute('disabled')"
+                    + "&&control.getAttribute('aria-disabled')!=='true'"));
+            assertTrue(script.contains("rect.width>0&&rect.height>0"
+                    + "&&getComputedStyle(control).visibility!=='hidden'"));
+        }
+    }
+
+    @Test
     public void videoDisplaySwipesReturnActionDiagnosticsToNativeLogger() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
