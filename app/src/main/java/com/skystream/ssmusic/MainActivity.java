@@ -23,6 +23,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -38,6 +39,7 @@ import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -1143,10 +1145,21 @@ public class MainActivity extends AppCompatActivity {
         if (enabling) {
             fields.addView(confirmation);
         }
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(fields);
+        ProgressBar loading = new ProgressBar(this);
+        loading.setIndeterminate(true);
+        loading.setVisibility(View.GONE);
+        LinearLayout.LayoutParams loadingParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        loadingParams.gravity = Gravity.CENTER_HORIZONTAL;
+        loadingParams.setMargins(padding, padding, padding, padding);
+        content.addView(loading, loadingParams);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(enabling ? R.string.kid_mode_enable : R.string.kid_mode_unlock)
                 .setMessage(enabling ? R.string.kid_mode_setup_message : R.string.kid_mode_unlock_message)
-                .setView(fields)
+                .setView(content)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, null)
                 .create();
@@ -1170,9 +1183,13 @@ public class MainActivity extends AppCompatActivity {
                 String stored = preferences.getString(KidModePassword.PREFERENCE, null);
                 password.getText().clear();
                 confirmation.getText().clear();
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
-                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
-                dialog.setCancelable(false);
+                InputMethodManager keyboard = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (keyboard != null) {
+                    keyboard.hideSoftInputFromWindow(password.getWindowToken(), 0);
+                }
+                password.clearFocus();
+                confirmation.clearFocus();
+                setKidModePasswordBusy(dialog, fields, loading, enabling, true);
                 passwordExecutor.execute(() -> {
                     String verifier = null;
                     int error = 0;
@@ -1193,10 +1210,8 @@ public class MainActivity extends AppCompatActivity {
                         if (isFinishing() || isDestroyed() || !dialog.isShowing()) {
                             return;
                         }
-                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
-                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
-                        dialog.setCancelable(true);
                         if (failure != 0) {
+                            setKidModePasswordBusy(dialog, fields, loading, enabling, false);
                             password.setError(getString(failure));
                             return;
                         }
@@ -1213,6 +1228,7 @@ public class MainActivity extends AppCompatActivity {
                             } else {
                                 preferences.edit().putString(KidModePassword.PREFERENCE, stored).commit();
                             }
+                            setKidModePasswordBusy(dialog, fields, loading, enabling, false);
                             password.setError(getString(R.string.kid_mode_save_failed));
                             return;
                         }
@@ -1236,6 +1252,21 @@ public class MainActivity extends AppCompatActivity {
             });
         });
         dialog.show();
+    }
+
+    private void setKidModePasswordBusy(AlertDialog dialog, View fields, View loading,
+                                       boolean enabling, boolean busy) {
+        fields.setVisibility(busy ? View.GONE : View.VISIBLE);
+        loading.setVisibility(busy ? View.VISIBLE : View.GONE);
+        dialog.setMessage(getString(busy
+                ? (enabling ? R.string.kid_mode_enabling : R.string.kid_mode_unlocking)
+                : (enabling ? R.string.kid_mode_setup_message : R.string.kid_mode_unlock_message)));
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(!busy);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(!busy);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setVisibility(busy ? View.GONE : View.VISIBLE);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(busy ? View.GONE : View.VISIBLE);
+        dialog.setCancelable(!busy);
+        dialog.setCanceledOnTouchOutside(!busy);
     }
 
     private EditText passwordField(int hint) {

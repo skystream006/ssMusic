@@ -41,6 +41,8 @@
     <string name="kid_mode_unlock">Unlock Kid mode</string>
     <string name="kid_mode_setup_message">Choose a password to turn Kid mode off later. Sign in before enabling. Keep the password safe; it cannot be recovered.</string>
     <string name="kid_mode_unlock_message">Enter your password to turn Kid mode off.</string>
+    <string name="kid_mode_enabling">Enabling Kid mode…</string>
+    <string name="kid_mode_unlocking">Unlocking Kid mode…</string>
     <string name="kid_mode_password">Password</string>
     <string name="kid_mode_confirm_password">Confirm password</string>
     <string name="kid_mode_empty_password">Enter a non-empty password.</string>
