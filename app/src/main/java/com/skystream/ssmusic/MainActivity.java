@@ -80,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long AUTO_RESUME_SUPPRESSION_MS = 1500L;
     private static final float MEDIA_SESSION_POSITION_SYNC_THRESHOLD_SECONDS = 5f;
     private static final int MAX_METADATA_LENGTH = 200;
+    private static final int MAX_THUMBNAIL_URL_LENGTH = 2000;
     private static final long POSITION_LOG_INTERVAL_MS = 30000L;
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     // Pick likely main media in priority order: paused with progress, paused fallback, then any non-ended node.
@@ -208,7 +209,13 @@ public class MainActivity extends AppCompatActivity {
                     + "var title=text('.title');"
                     + "if(!title){title=(document.title||'').replace(/\\s*-\\s*YouTube Music\\s*$/i,'');}"
                     + "var artist=text('.byline')||text('.subtitle');"
-                    + "window.ssmusicPlayback.setMetadata(title,artist);"
+                    + "var thumbnail='';"
+                    + "var selectors=['img.image','#thumbnail img','img','ytmusic-player-page img'];"
+                    + "for(var j=0;j<selectors.length&&!thumbnail;j++){"
+                    + "var image=(player||document).querySelector(selectors[j]);"
+                    + "if(image){thumbnail=image.currentSrc||image.src||'';}"
+                    + "}"
+                    + "window.ssmusicPlayback.setMetadata(title,artist,thumbnail);"
                     + "window.ssmusicPlayback.setPlaying(playing);"
                     + "}"
                     + "}"
@@ -282,6 +289,7 @@ public class MainActivity extends AppCompatActivity {
     private volatile long lastPositionLogAtElapsedMs;
     private String currentTrackTitle;
     private String currentTrackArtist;
+    private String currentTrackThumbnailUrl;
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -742,6 +750,10 @@ public class MainActivity extends AppCompatActivity {
         if (currentTrackArtist != null && !currentTrackArtist.isEmpty()) {
             serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_ARTIST, currentTrackArtist);
         }
+        if (currentTrackThumbnailUrl != null && !currentTrackThumbnailUrl.isEmpty()) {
+            serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_THUMBNAIL_URL,
+                    currentTrackThumbnailUrl);
+        }
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_START_TOKEN,
                 ++keepAliveStartToken);
         try {
@@ -987,19 +999,23 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void setMetadata(String title, String artist) {
+        public void setMetadata(String title, String artist, String thumbnailUrl) {
             runOnUiThread(() -> {
                 String sanitizedTitle = sanitizeMetadata(title);
                 String sanitizedArtist = sanitizeMetadata(artist);
+                String sanitizedThumbnailUrl = sanitizeThumbnailUrl(thumbnailUrl);
                 if (sanitizedTitle.isEmpty()) {
                     return;
                 }
-                if (sanitizedTitle.equals(currentTrackTitle) && sanitizedArtist.equals(currentTrackArtist)) {
+                if (sanitizedTitle.equals(currentTrackTitle)
+                        && sanitizedArtist.equals(currentTrackArtist)
+                        && stringEquals(sanitizedThumbnailUrl, currentTrackThumbnailUrl)) {
                     return;
                 }
                 Logger.event(TAG, "Track metadata: " + sanitizedTitle + " - " + sanitizedArtist);
                 currentTrackTitle = sanitizedTitle;
                 currentTrackArtist = sanitizedArtist;
+                currentTrackThumbnailUrl = sanitizedThumbnailUrl;
                 if (keepAliveServiceRunning) {
                     startPlaybackKeepAliveService(null);
                 }
@@ -1037,6 +1053,36 @@ public class MainActivity extends AppCompatActivity {
         String normalized = WHITESPACE.matcher(value.trim()).replaceAll(" ");
         return normalized.length() <= MAX_METADATA_LENGTH
                 ? normalized : normalized.substring(0, MAX_METADATA_LENGTH);
+    }
+
+    private String sanitizeThumbnailUrl(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty() || normalized.length() > MAX_THUMBNAIL_URL_LENGTH) {
+            return null;
+        }
+        Uri uri = Uri.parse(normalized);
+        return "https".equalsIgnoreCase(uri.getScheme()) && isAllowedThumbnailHost(uri.getHost())
+                ? normalized : null;
+    }
+
+    private boolean isAllowedThumbnailHost(String host) {
+        if (host == null) {
+            return false;
+        }
+        String normalized = host.toLowerCase(Locale.US);
+        return normalized.equals("music.youtube.com")
+                || normalized.endsWith(".youtube.com")
+                || normalized.endsWith(".ytimg.com")
+                || normalized.endsWith(".ggpht.com")
+                || normalized.endsWith(".googleusercontent.com")
+                || normalized.endsWith(".gstatic.com");
+    }
+
+    private boolean stringEquals(String first, String second) {
+        return first == null ? second == null : first.equals(second);
     }
 
     private boolean isPlaybackLikelyActive() {

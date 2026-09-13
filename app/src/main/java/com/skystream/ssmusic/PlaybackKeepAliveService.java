@@ -8,12 +8,25 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class PlaybackKeepAliveService extends Service {
 
@@ -33,11 +46,15 @@ public class PlaybackKeepAliveService extends Service {
     static final String EXTRA_SYNC_DURATION_MS = "sync_duration_ms";
     static final String EXTRA_SYNC_TITLE = "sync_title";
     static final String EXTRA_SYNC_ARTIST = "sync_artist";
+    static final String EXTRA_SYNC_THUMBNAIL_URL = "sync_thumbnail_url";
     static final String EXTRA_SYNC_START_TOKEN = "sync_start_token";
     private static final int REQUEST_PREVIOUS = 1;
     private static final int REQUEST_TOGGLE_PLAYBACK = 2;
     private static final int REQUEST_NEXT = 3;
     private static final int REQUEST_STOP = 4;
+    private static final int MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_THUMBNAIL_SIZE_PX = 512;
+    private static final int THUMBNAIL_TIMEOUT_MS = 5000;
     // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
     // renewed on every onStartCommand call while playback keeps the service alive.
     private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
@@ -50,6 +67,11 @@ public class PlaybackKeepAliveService extends Service {
     private long startToken;
     private String title;
     private String artist;
+    private String thumbnailUrl;
+    private Bitmap thumbnail;
+    private int thumbnailRequestVersion;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService thumbnailExecutor = Executors.newSingleThreadExecutor();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -116,6 +138,7 @@ public class PlaybackKeepAliveService extends Service {
         // Let the activity know the notification is gone so it stops syncing state to a dead service.
         handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED, 0L, startToken);
         releaseWakeLock();
+        thumbnailExecutor.shutdownNow();
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;
@@ -166,6 +189,9 @@ public class PlaybackKeepAliveService extends Service {
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setDeleteIntent(serviceIntent(ACTION_STOP, REQUEST_STOP))
                 .setOngoing(playing);
+        if (thumbnail != null) {
+            builder.setLargeIcon(thumbnail);
+        }
         builder.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_previous,
                 getString(R.string.playback_previous),
@@ -255,6 +281,9 @@ public class PlaybackKeepAliveService extends Service {
             if (intent.hasExtra(EXTRA_SYNC_ARTIST)) {
                 artist = intent.getStringExtra(EXTRA_SYNC_ARTIST);
             }
+            if (intent.hasExtra(EXTRA_SYNC_THUMBNAIL_URL)) {
+                setThumbnailUrl(intent.getStringExtra(EXTRA_SYNC_THUMBNAIL_URL));
+            }
             updateMediaMetadata();
             setPlaying(intent.hasExtra(EXTRA_SYNC_PLAYING)
                     ? intent.getBooleanExtra(EXTRA_SYNC_PLAYING, playing) : playing, notify);
@@ -337,7 +366,141 @@ public class PlaybackKeepAliveService extends Service {
         if (durationMs > 0L) {
             metadata.putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs);
         }
+        if (thumbnail != null) {
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, thumbnail);
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, thumbnail);
+        }
         mediaSession.setMetadata(metadata.build());
+    }
+
+    private void setThumbnailUrl(String value) {
+        String sanitized = sanitizeThumbnailUrl(value);
+        if (stringEquals(thumbnailUrl, sanitized)) {
+            return;
+        }
+        thumbnailUrl = sanitized;
+        thumbnail = null;
+        int requestVersion = ++thumbnailRequestVersion;
+        if (thumbnailUrl != null) {
+            loadThumbnailAsync(thumbnailUrl, requestVersion);
+        }
+    }
+
+    private String sanitizeThumbnailUrl(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        try {
+            URL url = new URL(normalized);
+            return isAllowedThumbnailUrl(url)
+                    ? normalized : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private boolean isAllowedThumbnailUrl(URL url) {
+        if (!"https".equalsIgnoreCase(url.getProtocol()) || url.getHost() == null) {
+            return false;
+        }
+        String host = url.getHost().toLowerCase(Locale.US);
+        return host.equals("music.youtube.com")
+                || host.endsWith(".youtube.com")
+                || host.endsWith(".ytimg.com")
+                || host.endsWith(".ggpht.com")
+                || host.endsWith(".googleusercontent.com")
+                || host.endsWith(".gstatic.com");
+    }
+
+    private void loadThumbnailAsync(String url, int requestVersion) {
+        thumbnailExecutor.execute(() -> {
+            Bitmap bitmap = downloadThumbnail(url);
+            mainHandler.post(() -> {
+                if (requestVersion != thumbnailRequestVersion || !stringEquals(thumbnailUrl, url)) {
+                    return;
+                }
+                thumbnail = bitmap;
+                updateMediaMetadata();
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                if (manager != null) {
+                    manager.notify(NOTIFICATION_ID, buildNotification());
+                }
+            });
+        });
+    }
+
+    private Bitmap downloadThumbnail(String source) {
+        HttpURLConnection connection = null;
+        try {
+            URL requestedUrl = new URL(source);
+            if (!isAllowedThumbnailUrl(requestedUrl)) {
+                return null;
+            }
+            connection = (HttpURLConnection) requestedUrl.openConnection();
+            connection.setConnectTimeout(THUMBNAIL_TIMEOUT_MS);
+            connection.setReadTimeout(THUMBNAIL_TIMEOUT_MS);
+            connection.connect();
+            if (!isAllowedThumbnailUrl(connection.getURL())) {
+                return null;
+            }
+            int contentLength = connection.getContentLength();
+            if (contentLength > MAX_THUMBNAIL_BYTES) {
+                return null;
+            }
+            try (InputStream input = connection.getInputStream()) {
+                byte[] bytes = readThumbnailBytes(input);
+                if (bytes == null) {
+                    return null;
+                }
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+                BitmapFactory.Options decode = new BitmapFactory.Options();
+                decode.inSampleSize = thumbnailSampleSize(bounds);
+                return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, decode);
+            }
+        } catch (IOException | RuntimeException e) {
+            Logger.debug(TAG, "Unable to load media thumbnail: " + e.getMessage());
+            return null;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private byte[] readThumbnailBytes(InputStream input) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int total = 0;
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            total += read;
+            if (total > MAX_THUMBNAIL_BYTES) {
+                return null;
+            }
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    private int thumbnailSampleSize(BitmapFactory.Options bounds) {
+        int sampleSize = 1;
+        int width = bounds.outWidth;
+        int height = bounds.outHeight;
+        while (width / sampleSize > MAX_THUMBNAIL_SIZE_PX
+                || height / sampleSize > MAX_THUMBNAIL_SIZE_PX) {
+            sampleSize *= 2;
+        }
+        return sampleSize;
+    }
+
+    private boolean stringEquals(String first, String second) {
+        return first == null ? second == null : first.equals(second);
     }
 
     private String displayTitle() {
