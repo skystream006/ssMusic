@@ -495,7 +495,7 @@ public class MainActivity extends AppCompatActivity {
                 + "}"
                 + "function apply(){"
                 + "scheduled=false;"
-                + "if(observer){observer.disconnect();}"
+                + "if(observer){observer.disconnect();observer=null;observed=null;}"
                 + "css();"
                 + "var node=video();"
                 + "var cover=document.getElementById(COVER_ID);"

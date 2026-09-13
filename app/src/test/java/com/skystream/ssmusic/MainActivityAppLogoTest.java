@@ -1,6 +1,7 @@
 package com.skystream.ssmusic;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -64,7 +65,7 @@ public class MainActivityAppLogoTest {
 
     @Test
     public void jsStringLiteralEscapesUnsafeCharacters() {
-        assertTrue(MainActivity.jsStringLiteral("Play 'video' \\ now\n")
-                .equals("'Play \\'video\\' \\\\ now\\n'"));
+        assertEquals("'Play \\'video\\' \\\\ now\\n'",
+                MainActivity.jsStringLiteral("Play 'video' \\ now\n"));
     }
 }
