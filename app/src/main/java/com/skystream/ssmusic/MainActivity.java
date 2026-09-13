@@ -12,6 +12,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
@@ -43,11 +45,15 @@ import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -146,6 +152,157 @@ public class MainActivity extends AppCompatActivity {
                     + "prune(window.ytInitialPlayerResponse,0);"
                     + "prune(window.ytInitialData,0);"
                     + "})()";
+
+    /**
+     * Same-origin path the WebView requests for the bundled app logo. Requests for it never reach
+     * the network, they are answered from the app resources by
+     * {@link MusicWebViewClient#shouldInterceptRequest}.
+     */
+    static final String APP_LOGO_PATH = "/ssmusic_app_logo.png";
+
+    /**
+     * Swaps the YouTube Music wordmark on the page for the bundled app logo.
+     *
+     * <p>YouTube Music renders its wordmark differently across surfaces (a plain {@code <img>}, an
+     * inline SVG, or a shadow-DOM subtree inside {@code ytmusic-logo}), so instead of editing the
+     * existing markup this inserts a real {@code <img>} overlay sized with inline styles that do
+     * not depend on the container having an intrinsic box, into both the light DOM and, when
+     * present, the shadow root. Existing content is only faded out with {@code opacity:0} so it
+     * stays hit-testable and taps still reach the home link it carries.
+     */
+    static final String APP_LOGO_SCRIPT =
+            "(function(){"
+                    + "var CLASS='ssmusic-app-logo';"
+                    + "var OVERLAY_CLASS='ssmusic-app-logo-overlay';"
+                    + "var CONTAINERS='ytmusic-logo,.ytmusic-logo,ytmusic-nav-bar .logo,"
+                    + "#logo-icon,yt-icon#logo-icon,a#logo';"
+                    + "var IMAGES='img[src*=\"music_logo\"],img[src*=\"yt_logo\"],"
+                    + "img[src*=\"youtube_logo\"],img[src*=\"ytm_logo\"]';"
+                    + "var LOGO_SRC=location.origin+'" + APP_LOGO_PATH + "';"
+                    + "var MIN_SIZE_PX=24;"
+                    + "function asArray(list){return Array.prototype.slice.call(list);}"
+                    + "function hideChildren(root){"
+                    + "var children=asArray(root.children);"
+                    + "for(var i=0;i<children.length;i++){"
+                    + "if(children[i].classList&&children[i].classList.contains(OVERLAY_CLASS)){"
+                    + "continue;"
+                    + "}"
+                    + "if(children[i].style){"
+                    + "children[i].style.setProperty('opacity','0','important');"
+                    + "}"
+                    + "}"
+                    + "}"
+                    + "function placeOverlay(root){"
+                    + "var img=root.querySelector('img.'+OVERLAY_CLASS);"
+                    + "if(!img){"
+                    + "img=document.createElement('img');"
+                    + "img.className=OVERLAY_CLASS;"
+                    + "img.alt='ssMusic';"
+                    + "root.appendChild(img);"
+                    + "}"
+                    + "img.style.setProperty('position','absolute','important');"
+                    + "img.style.setProperty('top','0','important');"
+                    + "img.style.setProperty('left','0','important');"
+                    + "img.style.setProperty('width','100%','important');"
+                    + "img.style.setProperty('height','100%','important');"
+                    + "img.style.setProperty('object-fit','contain','important');"
+                    + "img.style.setProperty('object-position','left center','important');"
+                    + "img.style.setProperty('opacity','1','important');"
+                    + "img.style.setProperty('pointer-events','none','important');"
+                    + "if(img.src!==LOGO_SRC){img.src=LOGO_SRC;}"
+                    + "}"
+                    // Custom elements are often left at display:contents or a zero-size host, which
+                    // paints nothing at all, so the container is forced to establish its own box
+                    // for the absolutely positioned overlay to fill.
+                    + "function ensureBox(node){"
+                    + "var computed=window.getComputedStyle(node);"
+                    + "if(computed.position==='static'){"
+                    + "node.style.setProperty('position','relative','important');"
+                    + "}"
+                    + "if(computed.display==='contents'||computed.display==='inline'){"
+                    + "node.style.setProperty('display','inline-block','important');"
+                    + "}"
+                    + "if(node.offsetWidth<MIN_SIZE_PX){"
+                    + "node.style.setProperty('min-width',MIN_SIZE_PX+'px','important');"
+                    + "}"
+                    + "if(node.offsetHeight<MIN_SIZE_PX){"
+                    + "node.style.setProperty('min-height',MIN_SIZE_PX+'px','important');"
+                    + "}"
+                    + "}"
+                    + "function paintContainer(node){"
+                    + "if(!node||!node.style){return;}"
+                    + "if(node.parentElement&&node.parentElement.closest"
+                    + "&&node.parentElement.closest(CONTAINERS)){return;}"
+                    + "node.classList.add(CLASS);"
+                    + "ensureBox(node);"
+                    + "hideChildren(node);"
+                    + "placeOverlay(node);"
+                    + "if(node.shadowRoot){"
+                    + "hideChildren(node.shadowRoot);"
+                    + "placeOverlay(node.shadowRoot);"
+                    + "}"
+                    + "}"
+                    // Fallback for stray wordmark images outside the known containers, where a
+                    // plain src swap is enough.
+                    + "function replaceImage(image){"
+                    + "if(image.classList&&image.classList.contains(CLASS)"
+                    + "&&image.src===LOGO_SRC){return;}"
+                    + "image.classList.add(CLASS);"
+                    + "image.alt='ssMusic';"
+                    + "image.src=LOGO_SRC;"
+                    + "image.style.setProperty('object-fit','contain','important');"
+                    + "}"
+                    + "function watch(target){"
+                    + "new MutationObserver(function(mutations){"
+                    + "for(var i=0;i<mutations.length;i++){"
+                    + "for(var j=0;j<mutations[i].addedNodes.length;j++){"
+                    + "var node=mutations[i].addedNodes[j];"
+                    + "if(node.nodeType===1){applyLogos(node);}"
+                    + "}"
+                    + "}"
+                    + "}).observe(target,{childList:true,subtree:true});"
+                    + "}"
+                    // Regular querySelectorAll calls cannot see across a shadow boundary, so shadow
+                    // roots are located and searched (and watched for mutations) explicitly.
+                    + "function observeShadowRoots(root){"
+                    + "if(!root||!root.querySelectorAll){return;}"
+                    + "var all=asArray(root.querySelectorAll('*'));"
+                    + "for(var i=0;i<all.length;i++){"
+                    + "var shadow=all[i].shadowRoot;"
+                    + "if(shadow&&!shadow.__ssmusicLogoObserved){"
+                    + "shadow.__ssmusicLogoObserved=true;"
+                    + "applyLogos(shadow);"
+                    + "watch(shadow);"
+                    + "}"
+                    + "}"
+                    + "}"
+                    + "function applyLogos(root){"
+                    + "if(!root){return;}"
+                    + "var containers=root.querySelectorAll?asArray(root.querySelectorAll(CONTAINERS)):[];"
+                    + "if(root.matches&&root.matches(CONTAINERS)){containers.push(root);}"
+                    + "for(var i=0;i<containers.length;i++){paintContainer(containers[i]);}"
+                    + "var images=root.querySelectorAll?asArray(root.querySelectorAll(IMAGES)):[];"
+                    + "if(root.matches&&root.matches(IMAGES)){images.push(root);}"
+                    + "for(var j=0;j<images.length;j++){replaceImage(images[j]);}"
+                    + "observeShadowRoots(root);"
+                    + "}"
+                    + "applyLogos(document);"
+                    + "if(window.__ssmusicAppLogoInstalled){return;}"
+                    + "window.__ssmusicAppLogoInstalled=true;"
+                    + "document.addEventListener('yt-navigate-finish',function(){"
+                    + "applyLogos(document);"
+                    + "},true);"
+                    + "watch(document.documentElement);"
+                    + "setInterval(function(){applyLogos(document);},1000);"
+                    + "})()";
+
+    /**
+     * Delays (in milliseconds) at which {@link #APP_LOGO_SCRIPT} is re-injected after a page
+     * finishes loading. YouTube Music's nav bar components can attach their shadow DOM and lay
+     * themselves out well after the WebView considers the page finished, so a single injection at
+     * that point can run before the logo container exists or has a size.
+     */
+    private static final long[] APP_LOGO_REINJECT_DELAYS_MS = {300L, 1000L, 2500L, 5000L};
 
     // Treat unpaused-but-buffering media as active in fallback checks so app backgrounding
     // transitions do not briefly report paused and make notification controls oscillate.
@@ -253,6 +410,8 @@ public class MainActivity extends AppCompatActivity {
                     + "setInterval(scheduleReport,5000);"
                     + "report();"
                     + "})()";
+
+    private final Handler logoInjectionHandler = new Handler(Looper.getMainLooper());
 
     private WebView webView;
     private ImageButton settingsButton;
@@ -368,6 +527,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         Logger.event(TAG, "onDestroy, finishing: " + isFinishing());
+        logoInjectionHandler.removeCallbacksAndMessages(null);
         if (mediaCommandReceiverRegistered) {
             unregisterReceiver(mediaCommandReceiver);
             mediaCommandReceiverRegistered = false;
@@ -679,6 +839,52 @@ public class MainActivity extends AppCompatActivity {
         }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
+        view.evaluateJavascript(APP_LOGO_SCRIPT, null);
+        scheduleAppLogoReinjection(view);
+    }
+
+    /**
+     * Re-runs {@link #APP_LOGO_SCRIPT} at a few short delays after a page finishes loading. See
+     * {@link #APP_LOGO_REINJECT_DELAYS_MS} for why a single injection is not always enough.
+     */
+    private void scheduleAppLogoReinjection(WebView view) {
+        WeakReference<WebView> viewRef = new WeakReference<>(view);
+        for (long delayMs : APP_LOGO_REINJECT_DELAYS_MS) {
+            logoInjectionHandler.postDelayed(() -> {
+                WebView target = viewRef.get();
+                if (target != null && SiteScope.isPlaybackUrl(target.getUrl())) {
+                    Logger.debug(TAG, "Reinjecting app logo after " + delayMs + "ms");
+                    target.evaluateJavascript(APP_LOGO_SCRIPT, null);
+                }
+            }, delayMs);
+        }
+    }
+
+    /**
+     * @param url a request URL seen by the WebView
+     * @return true when the request is the WebView asking for the bundled app logo
+     */
+    static boolean isAppLogoRequest(String url) {
+        if (url == null) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.US);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            return false;
+        }
+        int pathStart = lower.indexOf('/', lower.indexOf("://") + 3);
+        if (pathStart < 0) {
+            return false;
+        }
+        int pathEnd = lower.length();
+        for (int i = pathStart; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            if (c == '?' || c == '#') {
+                pathEnd = i;
+                break;
+            }
+        }
+        return lower.substring(pathStart, pathEnd).equals(APP_LOGO_PATH);
     }
 
     private void registerMediaCommandReceiver() {
@@ -1068,18 +1274,19 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-            return blockedResponse(request.getUrl().toString());
+            return interceptRequest(request.getUrl().toString());
         }
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
-            return blockedResponse(url);
+            return interceptRequest(url);
         }
 
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
             Logger.event(TAG, "Page started: " + url);
+            logoInjectionHandler.removeCallbacksAndMessages(null);
             updatePlaybackService(false);
         }
 
@@ -1130,6 +1337,21 @@ public class MainActivity extends AppCompatActivity {
             }
             prepareForUrl(normalized);
             return false;
+        }
+
+        private WebResourceResponse interceptRequest(String url) {
+            if (isAppLogoRequest(url)) {
+                Logger.debug(TAG, "Serving app logo: " + url);
+                return appLogoResponse();
+            }
+            return blockedResponse(url);
+        }
+
+        private WebResourceResponse appLogoResponse() {
+            InputStream logo = getResources().openRawResource(R.drawable.app_logo);
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "no-cache");
+            return new WebResourceResponse("image/png", null, 200, "OK", headers, logo);
         }
 
         private WebResourceResponse blockedResponse(String url) {

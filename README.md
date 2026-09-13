@@ -7,6 +7,9 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - back, forward, refresh, and home navigation
 - optional debug logging
 
+The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
+to the WebView from a synthetic same-origin path instead of the network.
+
 ## Logging
 
 Logging is off by default. Turn on **Enable logging** in the settings panel to record app
