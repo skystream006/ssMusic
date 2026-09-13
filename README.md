@@ -12,8 +12,8 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
 to the WebView from a synthetic same-origin path instead of the network.
 
-In the expanded media view, swipe down on the video area to minimize the player, left for
-the previous song, or right for the next song. These gestures also work while the song
+In the expanded media view, swipe down on the video area to minimize the player, up to
+open **Up next**, left for the previous song, or right for the next song. These gestures also work while the song
 thumbnail is shown. Taps and player controls retain their normal behavior.
 
 ## Stats for nerds
