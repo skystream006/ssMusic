@@ -150,6 +150,38 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!apply()){setTimeout(apply,50);}"
                     + "})()";
 
+    static final String OPEN_APP_HIDING_SCRIPT =
+            "(function(){"
+                    + "var NAV='ytmusic-nav-bar,ytmusic-guide-renderer,ytmusic-mini-guide-renderer';"
+                    + "var CONTROLS='ytmusic-guide-entry-renderer,ytmusic-mini-guide-entry-renderer,"
+                    + "yt-button-renderer,yt-button-shape,a,button,[role=\"button\"],.app-install-link';"
+                    + "function isOpenApp(node){"
+                    + "return node.classList.contains('app-install-link')"
+                    + "||!!node.querySelector('.app-install-link')"
+                    + "||/^open app$/i.test((node.getAttribute('aria-label')||'').trim())"
+                    + "||/^open app$/i.test((node.textContent||'').replace(/\\s+/g,' ').trim());"
+                    + "}"
+                    + "function hide(){"
+                    + "var navs=document.querySelectorAll(NAV);"
+                    + "for(var i=0;i<navs.length;i++){"
+                    + "var controls=navs[i].querySelectorAll(CONTROLS);"
+                    + "for(var j=0;j<controls.length;j++){"
+                    + "var node=controls[j];"
+                    + "if(!isOpenApp(node)){continue;}"
+                    + "var entry=node.closest('ytmusic-guide-entry-renderer,ytmusic-mini-guide-entry-renderer');"
+                    + "(entry||node).style.setProperty('display','none','important');"
+                    + "}"
+                    + "}"
+                    + "}"
+                    + "hide();"
+                    + "if(!window.__ssmusicOpenAppObserver&&document.documentElement){"
+                    + "window.__ssmusicOpenAppObserver=new MutationObserver(hide);"
+                    + "window.__ssmusicOpenAppObserver.observe(document.documentElement,"
+                    + "{childList:true,subtree:true,characterData:true,attributes:true,"
+                    + "attributeFilter:['class','aria-label']});"
+                    + "}"
+                    + "})()";
+
     static final String AD_JSON_PRUNE_SCRIPT =
             "(function(){"
                     + "if(window.__ssmusicJsonPruneInstalled){return;}"
@@ -1455,6 +1487,7 @@ public class MainActivity extends AppCompatActivity {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
+        view.evaluateJavascript(OPEN_APP_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
         view.evaluateJavascript(videoDisplayScript(isShowVideoThumbnailDefault(),
