@@ -1,5 +1,8 @@
 package com.skystream.ssmusic;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+
 final class Urls {
 
     private Urls() {
@@ -98,5 +101,22 @@ final class Urls {
                 || normalized.endsWith(".ggpht.com")
                 || normalized.endsWith(".googleusercontent.com")
                 || normalized.endsWith(".gstatic.com");
+    }
+
+    static boolean isAllowedHttpsThumbnailUrl(String value) {
+        if (value == null) {
+            return false;
+        }
+        try {
+            return isAllowedHttpsThumbnailUrl(new URL(value));
+        } catch (MalformedURLException e) {
+            return false;
+        }
+    }
+
+    static boolean isAllowedHttpsThumbnailUrl(URL url) {
+        return url != null
+                && "https".equalsIgnoreCase(url.getProtocol())
+                && isAllowedThumbnailHost(url.getHost());
     }
 }

@@ -210,7 +210,8 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!title){title=(document.title||'').replace(/\\s*-\\s*YouTube Music\\s*$/i,'');}"
                     + "var artist=text('.byline')||text('.subtitle');"
                     + "var thumbnail='';"
-                    + "var selectors=['img.image','#thumbnail img','img','ytmusic-player-page img'];"
+                    + "var selectors=['img.image','#thumbnail img','.thumbnail img',"
+                    + "'ytmusic-thumbnail-renderer img','.song-media-window img'];"
                     + "for(var j=0;j<selectors.length&&!thumbnail;j++){"
                     + "var image=(player||document).querySelector(selectors[j]);"
                     + "if(image){thumbnail=image.currentSrc||image.src||'';}"
@@ -1063,10 +1064,7 @@ public class MainActivity extends AppCompatActivity {
         if (normalized.isEmpty() || normalized.length() > MAX_THUMBNAIL_URL_LENGTH) {
             return null;
         }
-        Uri uri = Uri.parse(normalized);
-        return "https".equalsIgnoreCase(uri.getScheme())
-                && Urls.isAllowedThumbnailHost(uri.getHost())
-                ? normalized : null;
+        return Urls.isAllowedHttpsThumbnailUrl(normalized) ? normalized : null;
     }
 
     private boolean isPlaybackLikelyActive() {

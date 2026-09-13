@@ -41,4 +41,12 @@ public class UrlsTest {
         assertFalse(Urls.isAllowedThumbnailHost("ytimg.com.evil.example"));
         assertFalse(Urls.isAllowedThumbnailHost(null));
     }
+
+    @Test
+    public void isAllowedHttpsThumbnailUrlRequiresHttpsAllowedHost() {
+        assertTrue(Urls.isAllowedHttpsThumbnailUrl("https://i.ytimg.com/vi/id/default.jpg"));
+        assertFalse(Urls.isAllowedHttpsThumbnailUrl("http://i.ytimg.com/vi/id/default.jpg"));
+        assertFalse(Urls.isAllowedHttpsThumbnailUrl("https://ytimg.com.evil.example/image.jpg"));
+        assertFalse(Urls.isAllowedHttpsThumbnailUrl("not a url"));
+    }
 }

@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +55,7 @@ public class PlaybackKeepAliveService extends Service {
     private static final int MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024;
     private static final int MAX_THUMBNAIL_SIZE_PX = 512;
     private static final int THUMBNAIL_TIMEOUT_MS = 5000;
+    private static final int MAX_THUMBNAIL_REDIRECTS = 3;
     // Safety timeout so the wake lock cannot be held forever if release() is ever missed;
     // renewed on every onStartCommand call while playback keeps the service alive.
     private static final long WAKE_LOCK_TIMEOUT_MS = java.util.concurrent.TimeUnit.HOURS.toMillis(6);
@@ -68,6 +70,7 @@ public class PlaybackKeepAliveService extends Service {
     private String artist;
     private String thumbnailUrl;
     private Bitmap thumbnail;
+    // Thumbnail state is mutated only on the service main thread; background work posts results.
     private int thumbnailRequestVersion;
     private boolean destroyed;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -396,18 +399,7 @@ public class PlaybackKeepAliveService extends Service {
         if (normalized.isEmpty()) {
             return null;
         }
-        try {
-            URL url = new URL(normalized);
-            return isAllowedThumbnailUrl(url)
-                    ? normalized : null;
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    private boolean isAllowedThumbnailUrl(URL url) {
-        return "https".equalsIgnoreCase(url.getProtocol())
-                && Urls.isAllowedThumbnailHost(url.getHost());
+        return Urls.isAllowedHttpsThumbnailUrl(normalized) ? normalized : null;
     }
 
     private void loadThumbnailAsync(String url, int requestVersion) {
@@ -431,17 +423,8 @@ public class PlaybackKeepAliveService extends Service {
     private Bitmap downloadThumbnail(String source) {
         HttpURLConnection connection = null;
         try {
-            URL requestedUrl = new URL(source);
-            if (!isAllowedThumbnailUrl(requestedUrl)) {
-                return null;
-            }
-            connection = (HttpURLConnection) requestedUrl.openConnection();
-            connection.setInstanceFollowRedirects(false);
-            connection.setConnectTimeout(THUMBNAIL_TIMEOUT_MS);
-            connection.setReadTimeout(THUMBNAIL_TIMEOUT_MS);
-            int responseCode = connection.getResponseCode();
-            if (responseCode < HttpURLConnection.HTTP_OK
-                    || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
+            connection = openThumbnailConnection(new URL(source));
+            if (connection == null) {
                 return null;
             }
             int contentLength = connection.getContentLength();
@@ -467,6 +450,57 @@ public class PlaybackKeepAliveService extends Service {
             if (connection != null) {
                 connection.disconnect();
             }
+        }
+    }
+
+    private HttpURLConnection openThumbnailConnection(URL initialUrl) throws IOException {
+        URL url = initialUrl;
+        for (int redirectCount = 0; redirectCount <= MAX_THUMBNAIL_REDIRECTS; redirectCount++) {
+            if (!Urls.isAllowedHttpsThumbnailUrl(url)) {
+                return null;
+            }
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(THUMBNAIL_TIMEOUT_MS);
+            connection.setReadTimeout(THUMBNAIL_TIMEOUT_MS);
+            int responseCode = connection.getResponseCode();
+            if (responseCode >= HttpURLConnection.HTTP_OK
+                    && responseCode < HttpURLConnection.HTTP_MULT_CHOICE) {
+                return connection;
+            }
+            if (!isRedirectResponse(responseCode)) {
+                connection.disconnect();
+                return null;
+            }
+            String location = connection.getHeaderField("Location");
+            connection.disconnect();
+            URL redirectUrl = resolveThumbnailRedirect(url, location);
+            if (redirectUrl == null) {
+                return null;
+            }
+            url = redirectUrl;
+        }
+        return null;
+    }
+
+    private boolean isRedirectResponse(int responseCode) {
+        return responseCode == HttpURLConnection.HTTP_MOVED_PERM
+                || responseCode == HttpURLConnection.HTTP_MOVED_TEMP
+                || responseCode == HttpURLConnection.HTTP_SEE_OTHER
+                || responseCode == HttpURLConnection.HTTP_MULT_CHOICE
+                || responseCode == 307
+                || responseCode == 308;
+    }
+
+    private URL resolveThumbnailRedirect(URL baseUrl, String location) {
+        if (location == null || location.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            URL redirectUrl = new URL(baseUrl, location.trim());
+            return Urls.isAllowedHttpsThumbnailUrl(redirectUrl) ? redirectUrl : null;
+        } catch (MalformedURLException e) {
+            return null;
         }
     }
 
