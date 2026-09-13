@@ -131,7 +131,6 @@ public class MainActivity extends AppCompatActivity {
                     + "var css='ytmusic-mealbar-promo-renderer,"
                     + "ytmusic-statement-banner-renderer,"
                     + "ytmusic-promo-panel-renderer,"
-                    + "ytmusic-you-there-renderer,"
                     + "ytd-ad-slot-renderer,"
                     + "ytm-promoted-video-renderer,"
                     + ".ytp-ad-module,"
@@ -165,6 +164,55 @@ public class MainActivity extends AppCompatActivity {
                     + "return true;"
                     + "}"
                     + "if(!apply()){setTimeout(apply,50);}"
+                    + "})()";
+
+    static final String STILL_LISTENING_SCRIPT =
+            "(function(){"
+                    + "if(location.origin!=='https://music.youtube.com'||window!==window.top){return;}"
+                    + "if(window.__ssmusicStillListeningObserver||!document.documentElement){return;}"
+                    + "var PROMPT='ytmusic-you-there-renderer';"
+                    + "var confirmed=new Set();"
+                    + "function visible(node){"
+                    + "if(!document.documentElement.contains(node)"
+                    + "||node.closest('[hidden],[aria-hidden=\"true\"],dialog:not([open])')){return false;}"
+                    + "var style=getComputedStyle(node);"
+                    + "return style.visibility!=='hidden'&&style.visibility!=='collapse'"
+                    + "&&node.getClientRects().length>0;"
+                    + "}"
+                    + "function confirm(){"
+                    + "confirmed.forEach(function(prompt){if(!visible(prompt)){confirmed.delete(prompt);}});"
+                    + "var prompts=document.querySelectorAll(PROMPT);"
+                    + "for(var i=0;i<prompts.length;i++){"
+                    + "var prompt=prompts[i];"
+                    + "if(confirmed.has(prompt)||!visible(prompt)){continue;}"
+                    + "var button=prompt.querySelector('[dialog-confirm] button,button[dialog-confirm],"
+                    + "#confirm-button button,button#confirm-button')"
+                    + "||prompt.querySelector('[dialog-confirm],#confirm-button');"
+                    + "if(!button||!visible(button)"
+                    + "||button.closest('[disabled],[aria-disabled=\"true\"],[inert]')){continue;}"
+                    + "confirmed.add(prompt);"
+                    + "button.click();"
+                    + "}"
+                    + "}"
+                    + "window.__ssmusicStillListeningObserver=new MutationObserver(function(changes){"
+                    + "changes.forEach(function(change){"
+                    + "if(change.type==='childList'){"
+                    + "for(var i=0;i<change.removedNodes.length;i++){"
+                    + "var removed=change.removedNodes[i];"
+                    + "confirmed.forEach(function(prompt){if(removed.contains(prompt)){confirmed.delete(prompt);}});"
+                    + "}"
+                    + "}"
+                    + "});"
+                    + "confirm();"
+                    + "});"
+                    + "window.__ssmusicStillListeningObserver.observe(document.documentElement,"
+                    + "{childList:true,subtree:true,attributes:true,"
+                    + "attributeFilter:['hidden','aria-hidden','open','style','class','disabled','aria-disabled',"
+                    + "'inert','dialog-confirm','id']});"
+                    + "document.addEventListener('visibilitychange',confirm);"
+                    + "document.addEventListener('pause',confirm,true);"
+                    + "document.addEventListener('yt-navigate-finish',confirm);"
+                    + "confirm();"
                     + "})()";
 
     static final String OPEN_APP_HIDING_SCRIPT =
@@ -1508,6 +1556,7 @@ public class MainActivity extends AppCompatActivity {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
+        view.evaluateJavascript(STILL_LISTENING_SCRIPT, null);
         view.evaluateJavascript(OPEN_APP_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
