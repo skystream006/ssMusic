@@ -58,6 +58,10 @@ public class PlaybackKeepAliveService extends Service {
     private String title;
     private String artist;
 
+    // AudioManager delivers focus-change callbacks on the main thread by default (no Handler is
+    // passed to AudioFocusRequest.Builder/requestAudioFocus below), which is the same thread all
+    // other service lifecycle/state methods run on, so the fields touched here need no extra
+    // synchronization.
     private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
         Logger.event(TAG, "Audio focus changed: " + audioFocusChangeLabel(focusChange));
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
