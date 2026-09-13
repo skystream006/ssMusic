@@ -425,8 +425,9 @@ public class MainActivity extends AppCompatActivity {
                     + "})()";
 
     /**
-     * Injects an in-page control for YouTube Music videos. The script overlays the current song
-     * thumbnail over the video when enabled, renders a toggle button near the player, and exposes
+     * Injects an in-page control for YouTube Music videos. When enabled the script makes the video
+     * element fully transparent and draws the current song thumbnail over the video area, renders a
+     * horizontally centered toggle button near the top of the player, and exposes
      * {@code __ssmusicSetVideoThumbnailDefault} for native settings changes.
      */
     static String videoDisplayScript(boolean showThumbnailByDefault, String showThumbnailLabel,
@@ -442,6 +443,7 @@ public class MainActivity extends AppCompatActivity {
                 + "var scheduled=false;"
                 + "var observer=null;"
                 + "var observed=null;"
+                + "var hidden=null;"
                 + "var showing=typeof window.__ssmusicVideoThumbnailDefault==='boolean'"
                 + "?window.__ssmusicVideoThumbnailDefault:DEFAULT;"
                 + "window.__ssmusicVideoThumbnailDefault=showing;"
@@ -449,9 +451,13 @@ public class MainActivity extends AppCompatActivity {
                 + "if(document.getElementById(STYLE_ID)){return;}"
                 + "var style=document.createElement('style');"
                 + "style.id=STYLE_ID;"
-                + "style.textContent='#'+ROOT_ID+'{position:absolute!important;top:8px!important;right:8px!important;z-index:2147483647!important}'"
-                + "+' #'+ROOT_ID+' button{border:0!important;border-radius:999px!important;padding:8px 12px!important;background:rgba(0,0,0,.72)!important;color:#fff!important;font:500 13px sans-serif!important;box-shadow:0 1px 4px rgba(0,0,0,.35)!important}'"
-                + "+' #'+COVER_ID+'{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:contain!important;background:#000!important;z-index:2147483646!important}';"
+                + "style.textContent='#'+ROOT_ID+'{position:absolute!important;top:8px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:2147483647!important}'"
+                + "+' #'+ROOT_ID+' button{display:inline-flex!important;align-items:center!important;justify-content:center!important;"
+                + "border:1px solid rgba(255,255,255,.28)!important;border-radius:999px!important;padding:10px 18px!important;"
+                + "background:rgba(0,0,0,.78)!important;color:#fff!important;font:600 14px/1 sans-serif!important;letter-spacing:.2px!important;"
+                + "cursor:pointer!important;box-shadow:0 2px 8px rgba(0,0,0,.45)!important}'"
+                + "+' #'+COVER_ID+'{position:absolute!important;object-fit:contain!important;background:#000!important;"
+                + "pointer-events:none!important;z-index:2147483646!important}';"
                 + "(document.head||document.documentElement).appendChild(style);"
                 + "}"
                 + "function player(){return document.querySelector('ytmusic-player-page #player,ytmusic-player-page .player,ytmusic-player,ytmusic-player-page')||document.body;}"
@@ -495,6 +501,28 @@ public class MainActivity extends AppCompatActivity {
                 + "}"
                 + "apply();"
                 + "}"
+                + "function reveal(){"
+                + "if(hidden){hidden.style.removeProperty('opacity');hidden=null;}"
+                + "}"
+                + "function conceal(node){"
+                + "if(hidden&&hidden!==node){hidden.style.removeProperty('opacity');}"
+                + "hidden=node;node.style.setProperty('opacity','0','important');"
+                + "}"
+                + "function place(cover,node,host){"
+                + "var videoRect=node.getBoundingClientRect();"
+                + "var hostRect=host.getBoundingClientRect();"
+                + "if(videoRect.width>0&&videoRect.height>0){"
+                + "cover.style.setProperty('left',(videoRect.left-hostRect.left)+'px','important');"
+                + "cover.style.setProperty('top',(videoRect.top-hostRect.top)+'px','important');"
+                + "cover.style.setProperty('width',videoRect.width+'px','important');"
+                + "cover.style.setProperty('height',videoRect.height+'px','important');"
+                + "}else{"
+                + "cover.style.setProperty('left','0','important');"
+                + "cover.style.setProperty('top','0','important');"
+                + "cover.style.setProperty('width','100%','important');"
+                + "cover.style.setProperty('height','100%','important');"
+                + "}"
+                + "}"
                 + "function apply(){"
                 + "scheduled=false;"
                 + "if(observer){observer.disconnect();}"
@@ -502,7 +530,7 @@ public class MainActivity extends AppCompatActivity {
                 + "var node=video();"
                 + "var cover=document.getElementById(COVER_ID);"
                 + "var root=document.getElementById(ROOT_ID);"
-                + "if(!node){if(cover){cover.remove();}if(root){root.remove();}observe();return;}"
+                + "if(!node){reveal();if(cover){cover.remove();}if(root){root.remove();}observe();return;}"
                 + "var host=player();"
                 + "if(getComputedStyle(host).position==='static'){host.style.setProperty('position','relative','important');}"
                 + "root=ensureRoot(host);"
@@ -518,7 +546,9 @@ public class MainActivity extends AppCompatActivity {
                 + "var videoHost=node.parentElement||host;"
                 + "if(getComputedStyle(videoHost).position==='static'){videoHost.style.setProperty('position','relative','important');}"
                 + "if(cover.parentNode!==videoHost){videoHost.appendChild(cover);}"
-                + "}else if(cover){cover.remove();}"
+                + "place(cover,node,videoHost);"
+                + "conceal(node);"
+                + "}else{reveal();if(cover){cover.remove();}}"
                 + "observe();"
                 + "}"
                 + "function scheduleApply(){if(scheduled){return;}scheduled=true;setTimeout(apply,100);}"
@@ -529,6 +559,7 @@ public class MainActivity extends AppCompatActivity {
                 + "document.addEventListener('play',scheduleApply,true);"
                 + "document.addEventListener('loadedmetadata',scheduleApply,true);"
                 + "document.addEventListener('yt-navigate-finish',function(){setTimeout(scheduleApply,300);},true);"
+                + "window.addEventListener('resize',scheduleApply,true);"
                 + "}"
                 + "apply();"
                 + "})()";
