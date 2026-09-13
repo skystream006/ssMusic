@@ -82,6 +82,23 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void videoDisplaySwipesLogCompletedActionsThroughDiagnosticBridge() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("function logSwipe(action,dispatched){try{"
+                + "if(window.ssmusicPlayback&&window.ssmusicPlayback.logDiagnostic){"));
+        assertTrue(script.contains("var command=action==='down'?'minimize'"
+                + ":action==='left'?'previous':'next';"));
+        assertTrue(script.contains("window.ssmusicPlayback.logDiagnostic("
+                + "'Media player swipe '+action+': '+command"
+                + "+(dispatched?' control clicked':' control unavailable'));"));
+        assertTrue(script.contains("}catch(e){}}function installSwipes()"));
+        assertTrue(script.contains("if(action!==gesture.action){return;}"
+                + "var control=swipeControl(action);if(control){control.click();}"
+                + "logSwipe(action,!!control);"));
+    }
+
+    @Test
     public void videoDisplaySwipesPreserveControlsAndRejectUnintendedGestures() {
         String script = MainActivity.videoDisplayScript(
                 false, "Show thumbnail", "Play video", "Song thumbnail");

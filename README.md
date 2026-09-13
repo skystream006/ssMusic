@@ -35,7 +35,8 @@ every 30 seconds on a worker thread. Sampling stops when disabled or the app is 
 
 Logging is off by default. Turn on **Enable logging** in the settings panel to record app
 activity — lifecycle events, navigation, permission decisions, blocked ad requests, playback
-state, media notification commands, and uncaught exceptions. Every entry names the calling
+state, media notification commands, media-player swipes (direction, action, and whether the
+control was clicked or unavailable), and uncaught exceptions. Every entry names the calling
 code, and warnings, errors, and crashes carry a full stack trace. Entries go to logcat and to
 a private log file (`files/logs/ssmusic.log`) that is rotated once it reaches 512 KB. Use
 **Share log** to send the file to another app and **Clear log** to delete it. Because the log
