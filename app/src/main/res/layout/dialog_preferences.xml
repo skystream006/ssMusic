@@ -19,6 +19,13 @@
         tools:ignore="HardcodedText"
         tools:text="v1.0.0" />
 
+    <Button
+        android:id="@+id/check_updates_button"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/update_check" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
