@@ -28,7 +28,7 @@ public final class Logger {
 
     private static final String LOGCAT_TAG = "ssMusic";
     private static final String ENABLE_LOGGING_MESSAGE =
-            "Enable logging in settings to capture diagnostics: ";
+            "Enable logging in settings to capture diagnostics.";
     private static final Charset UTF_8 = Charset.forName("UTF-8");
     private static final Object FILE_LOCK = new Object();
 
@@ -174,18 +174,18 @@ public final class Logger {
             }
             enableLoggingReminderShown = true;
         }
-        Log.d(logcatTag(tag), enableLoggingReminder(level, tag, message));
+        Log.d(logcatTag(tag), enableLoggingReminder(message));
     }
 
     static boolean needsEnableLoggingReminder(String level) {
         return "W".equals(level) || "E".equals(level);
     }
 
-    static String enableLoggingReminder(String level, String tag, String message) {
+    static String enableLoggingReminder(String message) {
         StringBuilder reminder = new StringBuilder(ENABLE_LOGGING_MESSAGE);
         String text = LogFormat.sanitize(message);
         if (!text.isEmpty()) {
-            reminder.append(text);
+            reminder.append(" Last skipped diagnostic: ").append(text);
         }
         return reminder.toString();
     }
