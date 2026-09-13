@@ -57,6 +57,8 @@ public class MainActivityStillListeningTest {
         assertTrue(script.contains("change.attributeName==='hidden'&&change.oldValue!==null"));
         assertTrue(script.contains("change.attributeName==='aria-hidden'&&change.oldValue==='true'"));
         assertTrue(script.contains("change.attributeName==='open'&&change.oldValue===null"));
+        assertTrue(script.contains("previousStyle.cssText=change.oldValue||''"));
+        assertTrue(script.contains("previousStyle.display==='none'||previousStyle.visibility==='hidden'"));
         assertTrue(script.contains("if(change.target.contains(prompt)){confirmed.delete(prompt);}"));
         assertFalse(script.contains("removedNodes"));
         assertTrue(script.contains("confirmed.has(prompt)"));
