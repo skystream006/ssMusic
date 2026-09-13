@@ -12,6 +12,7 @@ import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Optional debug logging. Disabled by default; when the user turns it on from the settings
@@ -34,7 +35,7 @@ public final class Logger {
 
     private static volatile Context appContext;
     private static volatile boolean enabled;
-    private static volatile boolean enableLoggingReminderShown;
+    private static final AtomicBoolean enableLoggingReminderShown = new AtomicBoolean();
     private static volatile ExecutorService writer;
     private static boolean crashHandlerInstalled;
 
@@ -72,6 +73,7 @@ public final class Logger {
                     .apply();
         }
         if (value && !enabled) {
+            enableLoggingReminderShown.set(false);
             enabled = true;
             ensureWriter();
             installCrashHandler();
@@ -79,7 +81,7 @@ public final class Logger {
         } else if (!value && enabled) {
             event("Logger", "Logging disabled");
             enabled = false;
-            enableLoggingReminderShown = false;
+            enableLoggingReminderShown.set(false);
             shutdownWriter();
         }
     }
@@ -168,11 +170,8 @@ public final class Logger {
         if (!needsEnableLoggingReminder(level)) {
             return;
         }
-        synchronized (Logger.class) {
-            if (enableLoggingReminderShown) {
-                return;
-            }
-            enableLoggingReminderShown = true;
+        if (!enableLoggingReminderShown.compareAndSet(false, true)) {
+            return;
         }
         Log.d(logcatTag(tag), enableLoggingReminder(message));
     }

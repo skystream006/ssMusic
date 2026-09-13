@@ -1,7 +1,7 @@
 package com.skystream.ssmusic;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -15,7 +15,6 @@ public class LoggerTest {
         assertTrue(Logger.needsEnableLoggingReminder("W"));
         assertTrue(Logger.needsEnableLoggingReminder("E"));
     }
-
     @Test
     public void enableLoggingReminderNamesSuppressedDiagnostic() {
         assertEquals("Enable logging in settings to capture diagnostics."
