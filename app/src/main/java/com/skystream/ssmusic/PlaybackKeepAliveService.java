@@ -8,9 +8,6 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
-import android.media.AudioAttributes;
-import android.media.AudioFocusRequest;
-import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
@@ -47,54 +44,12 @@ public class PlaybackKeepAliveService extends Service {
 
     private PowerManager.WakeLock wakeLock;
     private MediaSession mediaSession;
-    private AudioManager audioManager;
-    private AudioFocusRequest audioFocusRequest;
-    private boolean hasAudioFocus;
-    private boolean pausedByTransientFocusLoss;
     private boolean playing = true;
     private long positionMs;
     private long durationMs;
     private long startToken;
     private String title;
     private String artist;
-
-    // AudioManager delivers focus-change callbacks on the main thread by default (no Handler is
-    // passed to AudioFocusRequest.Builder/requestAudioFocus below), which is the same thread all
-    // other service lifecycle/state methods run on, so the fields touched here need no extra
-    // synchronization.
-    private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
-        Logger.event(TAG, "Audio focus changed: " + audioFocusChangeLabel(focusChange));
-        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-            // A permanent loss (another app took over playback) should not auto-resume; release
-            // the framework-held focus request too so internal state stays consistent.
-            pausedByTransientFocusLoss = false;
-            abandonAudioFocus();
-            if (playing) {
-                Logger.event(TAG, "Pausing playback due to permanent audio focus loss");
-                handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
-                setPlaying(false, true);
-            }
-        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
-            // No volume-ducking support exists elsewhere in the app, so a transient loss is
-            // treated the same as a full pause and resumed automatically once focus returns.
-            hasAudioFocus = false;
-            if (playing) {
-                Logger.event(TAG, "Pausing playback due to transient audio focus loss");
-                pausedByTransientFocusLoss = true;
-                handleMediaCommand(MainActivity.MEDIA_COMMAND_PAUSE);
-                setPlaying(false, true);
-            }
-        } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-            hasAudioFocus = true;
-            if (pausedByTransientFocusLoss) {
-                pausedByTransientFocusLoss = false;
-                Logger.event(TAG, "Resuming playback after transient audio focus regained");
-                handleMediaCommand(MainActivity.MEDIA_COMMAND_PLAY);
-                setPlaying(true, true);
-            }
-        }
-    };
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -112,10 +67,10 @@ public class PlaybackKeepAliveService extends Service {
                 startForeground(NOTIFICATION_ID, notification);
             }
             // The notification stays up while paused so transport buttons keep working,
-            // but the wake lock and audio focus are only needed while audio is actually playing.
+            // but the wake lock is only needed while audio is actually playing. The WebView owns
+            // audio output and its audio focus, so this notification service must not request it.
             if (playing) {
                 acquireWakeLock();
-                requestAudioFocus();
             } else {
                 releaseWakeLock();
             }
@@ -144,7 +99,6 @@ public class PlaybackKeepAliveService extends Service {
     private void stopPlayback() {
         Logger.event(TAG, "Stopping playback notification");
         releaseWakeLock();
-        abandonAudioFocus();
         if (mediaSession != null) {
             mediaSession.setActive(false);
         }
@@ -162,7 +116,6 @@ public class PlaybackKeepAliveService extends Service {
         // Let the activity know the notification is gone so it stops syncing state to a dead service.
         handleMediaCommand(MainActivity.MEDIA_COMMAND_SERVICE_STOPPED, 0L, startToken);
         releaseWakeLock();
-        abandonAudioFocus();
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;
@@ -194,66 +147,6 @@ public class PlaybackKeepAliveService extends Service {
             wakeLock.release();
         }
         wakeLock = null;
-    }
-
-    @SuppressWarnings("deprecation")
-    private void requestAudioFocus() {
-        if (hasAudioFocus) {
-            return;
-        }
-        if (audioManager == null) {
-            audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        }
-        if (audioManager == null) {
-            return;
-        }
-        int result;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (audioFocusRequest == null) {
-                AudioAttributes attributes = new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build();
-                audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                        .setAudioAttributes(attributes)
-                        .setOnAudioFocusChangeListener(audioFocusListener)
-                        .build();
-            }
-            result = audioManager.requestAudioFocus(audioFocusRequest);
-        } else {
-            result = audioManager.requestAudioFocus(audioFocusListener,
-                    AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
-        }
-        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-        Logger.event(TAG, "Audio focus requested, granted: " + hasAudioFocus);
-    }
-
-    @SuppressWarnings("deprecation")
-    private void abandonAudioFocus() {
-        if (audioManager == null || !hasAudioFocus) {
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
-            audioManager.abandonAudioFocusRequest(audioFocusRequest);
-        } else {
-            audioManager.abandonAudioFocus(audioFocusListener);
-        }
-        hasAudioFocus = false;
-    }
-
-    private String audioFocusChangeLabel(int focusChange) {
-        switch (focusChange) {
-            case AudioManager.AUDIOFOCUS_GAIN:
-                return "GAIN";
-            case AudioManager.AUDIOFOCUS_LOSS:
-                return "LOSS";
-            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                return "LOSS_TRANSIENT";
-            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                return "LOSS_TRANSIENT_CAN_DUCK";
-            default:
-                return String.valueOf(focusChange);
-        }
     }
 
     private Notification buildNotification() {
