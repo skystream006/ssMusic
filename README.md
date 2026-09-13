@@ -116,15 +116,16 @@ or manually bump the version fields.
 
 GitHub Actions tests and builds debug APK artifacts and reads the version from the
 built APK metadata, so the app, artifact name, and release tag agree.
-Successful builds on `main` publish a GitHub release tagged `v<versionName>` with the
-debug-signed APK and generated release notes. Existing releases are left unchanged;
-pull request builds only upload artifacts.
+The **Android APK** workflow runs on pushes to `main`, pull requests, and manual
+dispatches. It only tests, builds, and uploads APK artifacts; it does not publish
+GitHub releases automatically after merges.
 
 To build a release manually, open **Actions → Manual Android Release → Run workflow**.
 This separate, manual-only workflow always checks out the latest `main` and uses its
 Git-derived version without incrementing it again. Rebuilding the same commit uses
 the same version in either workflow. It runs tests,
-uploads a debug-signed APK artifact, and publishes a new release marked as latest.
+uploads a debug-signed APK artifact, and publishes a new release tagged
+`v<versionName>` with generated release notes, marked as latest.
 If that version's release already exists, it is left unchanged; the rebuilt APK is
 still available in the workflow artifacts. Merge new changes into `main` when you
 need a new release. Pull request artifact versions are previews, not reserved release
