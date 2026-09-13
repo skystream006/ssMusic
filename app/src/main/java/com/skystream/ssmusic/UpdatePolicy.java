@@ -15,6 +15,11 @@ final class UpdatePolicy {
 
     private UpdatePolicy() {}
 
+    static boolean shouldResumeInstallation(boolean restoringActivity, boolean hasPendingApk,
+            boolean installRequested) {
+        return restoringActivity && hasPendingApk && installRequested;
+    }
+
     static int compareVersions(String left, String right) {
         String[] a = components(left);
         String[] b = components(right);

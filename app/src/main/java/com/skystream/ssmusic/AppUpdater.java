@@ -44,18 +44,25 @@ public final class AppUpdater {
     private int deferredMessage;
     private String deferredVersion;
 
-    public AppUpdater(Activity activity) {
+    public AppUpdater(Activity activity, boolean restoringActivity) {
         this.activity = activity;
         directory = new File(activity.getFilesDir(), "updates");
         preferences = activity.getSharedPreferences("app_updates", Activity.MODE_PRIVATE);
         if (preferences.getBoolean("pending", false)) {
             pendingApk = storedApk();
             pendingVersion = preferences.getString("version", "");
-            installRequested = pendingApk != null && pendingApk.isFile()
-                    && preferences.getBoolean("auto_install", true);
+            installRequested = UpdatePolicy.shouldResumeInstallation(restoringActivity,
+                    pendingApk != null && pendingApk.isFile(),
+                    preferences.getBoolean("auto_install", false));
             // A recreated activity returning from Settings must not reopen Settings on denial.
-            awaitingPermission = preferences.getBoolean("permission_requested", false);
+            awaitingPermission = installRequested
+                    && preferences.getBoolean("permission_requested", false);
             permissionScreenLeft = awaitingPermission;
+        }
+        if (!restoringActivity) {
+            // A fresh launch may offer a cached update, but must not launch its installer.
+            preferences.edit().putBoolean("auto_install", false)
+                    .putBoolean("permission_requested", false).apply();
         }
     }
 
@@ -209,7 +216,8 @@ public final class AppUpdater {
         installRequested = false;
         awaitingPermission = false;
         permissionScreenLeft = false;
-        preferences.edit().putBoolean("pending", false)
+        // Keep the APK retryable across recreation if the installer is cancelled.
+        preferences.edit().putBoolean("pending", true)
                 .putBoolean("permission_requested", false)
                 .putBoolean("auto_install", false).apply();
     }

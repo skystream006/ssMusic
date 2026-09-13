@@ -738,7 +738,7 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         statsOverlay = findViewById(R.id.stats_overlay);
         statsMonitor = new StatsMonitor(this, findViewById(R.id.stats_values));
-        appUpdater = new AppUpdater(this);
+        appUpdater = new AppUpdater(this, savedInstanceState != null);
         setStatsForNerdsEnabled(preferences.getBoolean(KEY_STATS_FOR_NERDS, false));
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> {

@@ -10,6 +10,22 @@ import org.junit.Test;
 
 public class UpdatePolicyTest {
     @Test
+    public void freshLaunchNeverResumesAnEarlierInstallRequest() {
+        assertFalse(UpdatePolicy.shouldResumeInstallation(false, true, true));
+        assertFalse(UpdatePolicy.shouldResumeInstallation(false, true, false));
+        assertFalse(UpdatePolicy.shouldResumeInstallation(false, false, true));
+        assertFalse(UpdatePolicy.shouldResumeInstallation(false, false, false));
+    }
+
+    @Test
+    public void recreationResumesOnlyAnActiveRequestWithADownloadedApk() {
+        assertTrue(UpdatePolicy.shouldResumeInstallation(true, true, true));
+        assertFalse(UpdatePolicy.shouldResumeInstallation(true, true, false));
+        assertFalse(UpdatePolicy.shouldResumeInstallation(true, false, true));
+        assertFalse(UpdatePolicy.shouldResumeInstallation(true, false, false));
+    }
+
+    @Test
     public void comparesNumericComponentsRatherThanStrings() {
         assertTrue(UpdatePolicy.compareVersions("v0.10.01", "0.9.99") > 0);
         assertTrue(UpdatePolicy.compareVersions("0.10.2", "v0.10.10") < 0);

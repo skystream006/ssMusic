@@ -85,6 +85,33 @@ public class UpdateClientTest {
     }
 
     @Test
+    public void cancellationBeforeRenameLeavesNoPartialOrApk() throws Exception {
+        int[] checks = {0};
+        try {
+            UpdateClient.saveAtomically(stream(), directory, 3, () -> {
+                if (++checks[0] == 5) throw new InterruptedIOException("Cancelled");
+            });
+            fail("Finalized a cancelled APK");
+        } catch (InterruptedIOException expected) {
+            assertEquals(5, checks[0]);
+            assertEquals(0, directory.listFiles().length);
+        }
+    }
+
+    @Test
+    public void failedDownloadCanBeRetried() throws Exception {
+        try {
+            UpdateClient.saveAtomically(stream(), directory, 4, () -> {});
+            fail("Accepted truncated APK");
+        } catch (IOException expected) {
+            assertEquals(0, directory.listFiles().length);
+        }
+        File result = UpdateClient.saveAtomically(stream(), directory, 3, () -> {});
+        assertArrayEquals(new byte[]{1, 2, 3}, Files.readAllBytes(result.toPath()));
+        assertEquals(1, directory.listFiles().length);
+    }
+
+    @Test
     public void readFailureLeavesNoPartialOrApk() throws Exception {
         try {
             UpdateClient.saveAtomically(new InputStream() {
