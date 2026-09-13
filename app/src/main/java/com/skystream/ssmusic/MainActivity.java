@@ -302,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
                     + "var ticks=0;"
                     + "var timer=setInterval(function(){"
                     + "applyLogos(document);"
-                    + "if(++ticks>=30){clearInterval(timer);}"
+                    + "if(++ticks>=15){clearInterval(timer);}"
                     + "},1000);"
                     + "})()";
 
@@ -1389,7 +1389,7 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
             Map<String, String> headers = new HashMap<>();
-            headers.put("Cache-Control", "max-age=31536000, immutable");
+            headers.put("Cache-Control", "no-cache");
             return new WebResourceResponse("image/png", null, 200, "OK", headers,
                     new ByteArrayInputStream(logo));
         }
