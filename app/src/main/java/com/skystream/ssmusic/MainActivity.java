@@ -45,7 +45,9 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -420,6 +422,8 @@ public class MainActivity extends AppCompatActivity {
                     + "})()";
 
     private final Handler logoInjectionHandler = new Handler(Looper.getMainLooper());
+
+    private byte[] appLogoBytes;
 
     private WebView webView;
     private ImageButton settingsButton;
@@ -866,6 +870,30 @@ public class MainActivity extends AppCompatActivity {
                 }
             }, delayMs);
         }
+    }
+
+    /**
+     * Reads the bundled logo once and keeps the encoded PNG bytes around, so every request for
+     * {@link #APP_LOGO_PATH} is answered from memory instead of re-reading the resource.
+     *
+     * @return the PNG bytes of the bundled logo, or null when the resource cannot be read
+     */
+    private synchronized byte[] appLogoBytes() {
+        if (appLogoBytes == null) {
+            ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+            try (InputStream logo = getResources().openRawResource(R.drawable.app_logo)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = logo.read(buffer)) >= 0) {
+                    encoded.write(buffer, 0, read);
+                }
+            } catch (Resources.NotFoundException | IOException e) {
+                Logger.warn(TAG, "App logo resource unavailable", e);
+                return null;
+            }
+            appLogoBytes = encoded.toByteArray();
+        }
+        return appLogoBytes;
     }
 
     /**
@@ -1356,16 +1384,14 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private WebResourceResponse appLogoResponse() {
-            InputStream logo;
-            try {
-                logo = getResources().openRawResource(R.drawable.app_logo);
-            } catch (Resources.NotFoundException e) {
-                Logger.warn(TAG, "App logo resource unavailable", e);
+            byte[] logo = appLogoBytes();
+            if (logo == null) {
                 return null;
             }
             Map<String, String> headers = new HashMap<>();
-            headers.put("Cache-Control", "no-cache");
-            return new WebResourceResponse("image/png", null, 200, "OK", headers, logo);
+            headers.put("Cache-Control", "max-age=31536000, immutable");
+            return new WebResourceResponse("image/png", null, 200, "OK", headers,
+                    new ByteArrayInputStream(logo));
         }
 
         private WebResourceResponse blockedResponse(String url) {

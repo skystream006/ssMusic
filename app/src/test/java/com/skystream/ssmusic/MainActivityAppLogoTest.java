@@ -15,6 +15,8 @@ public class MainActivityAppLogoTest {
                 "https://m.youtube.com" + MainActivity.APP_LOGO_PATH + "?v=1"));
         assertTrue(MainActivity.isAppLogoRequest(
                 "https://music.youtube.com" + MainActivity.APP_LOGO_PATH + "#frag"));
+        assertTrue(MainActivity.isAppLogoRequest(
+                "https://music.youtube.com/SSMusic_App_Logo.png"));
     }
 
     @Test
