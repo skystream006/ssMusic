@@ -39,8 +39,9 @@ Turning it off requires that same password; an incorrect password keeps it locke
 Only a salted, slow password verifier is stored in app-private preferences, not the password.
 The setting survives restarts. Keep the password safe: there is no in-app password recovery.
 
-While enabled, launches, incoming links, Home, and the page logo open
-`https://music.youtube.com/library`. Open a playlist there before playing its songs.
+While enabled, launches, incoming links, and Home open
+`https://music.youtube.com/library`. The page logo remains visible but is disabled
+instead of redirecting. Open a playlist in the library before playing its songs.
 The page's settings/menu buttons, navigation buttons, mini guide, search box, and Related
 tab are removed. Autoplay is switched off and its section hidden and disabled.
 Songs must be verified against the opened playlist, including when using notification
