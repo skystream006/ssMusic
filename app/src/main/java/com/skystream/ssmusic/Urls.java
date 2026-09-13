@@ -1,5 +1,8 @@
 package com.skystream.ssmusic;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+
 final class Urls {
 
     private Urls() {
@@ -85,5 +88,43 @@ final class Urls {
             parameterStart = parameterEnd + 1;
         }
         return null;
+    }
+
+    static boolean isAllowedThumbnailHost(String host) {
+        if (host == null) {
+            return false;
+        }
+        String normalized = host.toLowerCase(java.util.Locale.US);
+        return normalized.equals("music.youtube.com")
+                || normalized.endsWith(".youtube.com")
+                || normalized.endsWith(".ytimg.com")
+                || normalized.endsWith(".ggpht.com")
+                || normalized.endsWith(".googleusercontent.com")
+                || normalized.endsWith(".gstatic.com");
+    }
+
+    static boolean isAllowedHttpsThumbnailUrl(String value) {
+        return sanitizeHttpsThumbnailUrl(value, Integer.MAX_VALUE) != null;
+    }
+
+    static boolean isAllowedHttpsThumbnailUrl(URL url) {
+        return url != null
+                && "https".equalsIgnoreCase(url.getProtocol())
+                && isAllowedThumbnailHost(url.getHost());
+    }
+
+    static String sanitizeHttpsThumbnailUrl(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty() || normalized.length() > maxLength) {
+            return null;
+        }
+        try {
+            return isAllowedHttpsThumbnailUrl(new URL(normalized)) ? normalized : null;
+        } catch (MalformedURLException e) {
+            return null;
+        }
     }
 }
