@@ -32,9 +32,10 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.AdapterView;
 import android.widget.ImageButton;
-import android.widget.RadioGroup;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -931,27 +932,61 @@ public class MainActivity extends AppCompatActivity {
         content.findViewById(R.id.check_updates_button)
                 .setOnClickListener(v -> appUpdater.checkForUpdates(true));
 
-        RadioGroup themeGroup = content.findViewById(R.id.theme_group);
+        Spinner themeSpinner = content.findViewById(R.id.theme_spinner);
         int theme = preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM);
-        themeGroup.check(theme == Preferences.THEME_LIGHT ? R.id.theme_light
-                : theme == Preferences.THEME_DARK ? R.id.theme_dark : R.id.theme_system);
-        themeGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            int value = checkedId == R.id.theme_light ? Preferences.THEME_LIGHT
-                    : checkedId == R.id.theme_dark ? Preferences.THEME_DARK
-                    : Preferences.THEME_SYSTEM;
-            Logger.event(TAG, "Theme preference changed to " + value);
-            preferences.edit().putInt(KEY_THEME, value).apply();
-            applyTheme(value);
+        final int[] themeValues = {
+                Preferences.THEME_SYSTEM, Preferences.THEME_LIGHT, Preferences.THEME_DARK
+        };
+        themeSpinner.setSelection(theme == Preferences.THEME_LIGHT ? 1
+                : theme == Preferences.THEME_DARK ? 2 : 0);
+        themeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                int value = themeValues[position];
+                if (value == preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM)) {
+                    return;
+                }
+                Logger.event(TAG, "Theme preference changed to " + value);
+                preferences.edit().putInt(KEY_THEME, value).apply();
+                applyTheme(value);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
 
-        RadioGroup siteModeGroup = content.findViewById(R.id.site_mode_group);
-        siteModeGroup.check(isDesktopMode() ? R.id.site_mode_desktop : R.id.site_mode_mobile);
-        siteModeGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            boolean desktopMode = checkedId == R.id.site_mode_desktop;
-            Logger.event(TAG, "Site mode preference changed, desktop: " + desktopMode);
-            preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
-            applyUserAgentForUrl(webView.getUrl());
-            webView.reload();
+        Spinner siteModeSpinner = content.findViewById(R.id.site_mode_spinner);
+        siteModeSpinner.setSelection(isDesktopMode() ? 1 : 0);
+        siteModeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                boolean desktopMode = position == 1;
+                if (desktopMode == isDesktopMode()) {
+                    return;
+                }
+                Logger.event(TAG, "Site mode preference changed, desktop: " + desktopMode);
+                preferences.edit().putBoolean(KEY_DESKTOP_MODE, desktopMode).apply();
+                applyUserAgentForUrl(webView.getUrl());
+                webView.reload();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+        TextView advancedButton = content.findViewById(R.id.advanced_button);
+        View advancedSettings = content.findViewById(R.id.advanced_settings);
+        advancedButton.setContentDescription(getString(R.string.advanced_expand_accessibility));
+        advancedButton.setOnClickListener(v -> {
+            boolean expanded = advancedSettings.getVisibility() != View.VISIBLE;
+            advancedSettings.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            advancedButton.setText(expanded
+                    ? R.string.advanced_expanded : R.string.advanced_collapsed);
+            advancedButton.setContentDescription(getString(expanded
+                    ? R.string.advanced_collapse_accessibility
+                    : R.string.advanced_expand_accessibility));
         });
 
         Switch videoThumbnailSwitch = content.findViewById(R.id.video_thumbnail_switch);

@@ -1,0 +1,119 @@
+package com.skystream.ssmusic;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+
+import java.io.File;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.junit.Test;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+public class PreferencesLayoutTest {
+    private static final String ANDROID = "http://schemas.android.com/apk/res/android";
+
+    @Test
+    public void appearanceAndSiteModeUseLabeledDropdowns() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        assertDropdown(layout, "theme_spinner", "@array/theme_options");
+        assertDropdown(layout, "site_mode_spinner", "@array/site_mode_options");
+        assertEquals(0, layout.getElementsByTagName("RadioGroup").getLength());
+
+        Document strings = readResource("values/strings.xml");
+        assertOptions(strings, "theme_options",
+                "@string/theme_system", "@string/theme_light", "@string/theme_dark");
+        assertOptions(strings, "site_mode_options",
+                "@string/site_mode_mobile", "@string/site_mode_desktop");
+    }
+
+    @Test
+    public void advancedStartsCollapsedAndContainsOnlyAdvancedSettings() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        Element advanced = findById(layout, "advanced_settings");
+        assertEquals("gone", advanced.getAttributeNS(ANDROID, "visibility"));
+        assertSame(advanced.getParentNode(), findById(layout, "advanced_button").getParentNode());
+        for (String id : new String[]{"open_supported_links_button", "logging_switch",
+                "stats_for_nerds_switch", "log_actions"}) {
+            assertSame(advanced, findById(layout, id).getParentNode());
+        }
+        for (String id : new String[]{"theme_spinner", "site_mode_spinner",
+                "video_thumbnail_switch", "navigation_bar", "check_updates_button"}) {
+            assertSame(advanced.getParentNode(), findById(layout, id).getParentNode());
+        }
+    }
+
+    @Test
+    public void allLogActionsShareOneEqualWidthRow() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        Element row = findById(layout, "log_actions");
+        assertEquals("horizontal", row.getAttributeNS(ANDROID, "orientation"));
+        NodeList buttons = row.getElementsByTagName("Button");
+        assertEquals(3, buttons.getLength());
+        String[] ids = {"view_log_button", "share_log_button", "clear_log_button"};
+        for (int i = 0; i < ids.length; i++) {
+            Element button = findById(layout, ids[i]);
+            assertSame(row, button.getParentNode());
+            assertSame(button, buttons.item(i));
+            assertEquals("0dp", button.getAttributeNS(ANDROID, "layout_width"));
+            assertEquals("1", button.getAttributeNS(ANDROID, "layout_weight"));
+            assertEquals("1", button.getAttributeNS(ANDROID, "maxLines"));
+        }
+    }
+
+    private static Document readResource(String path) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        return factory.newDocumentBuilder().parse(new File("src/main/res", path));
+    }
+
+    private static Element findById(Document document, String id) {
+        NodeList elements = document.getElementsByTagName("*");
+        for (int i = 0; i < elements.getLength(); i++) {
+            Element element = (Element) elements.item(i);
+            if (("@+id/" + id).equals(element.getAttributeNS(ANDROID, "id"))) {
+                return element;
+            }
+        }
+        throw new AssertionError("Missing view: " + id);
+    }
+
+    private static void assertDropdown(Document layout, String id, String entries) {
+        Element spinner = findById(layout, id);
+        assertEquals("Spinner", spinner.getTagName());
+        assertEquals("dropdown", spinner.getAttributeNS(ANDROID, "spinnerMode"));
+        assertEquals(entries, spinner.getAttributeNS(ANDROID, "entries"));
+        NodeList labels = layout.getElementsByTagName("TextView");
+        Element label = null;
+        for (int i = 0; i < labels.getLength(); i++) {
+            Element candidate = (Element) labels.item(i);
+            if (("@+id/" + id).equals(candidate.getAttributeNS(ANDROID, "labelFor"))) {
+                label = candidate;
+            }
+        }
+        assertNotNull("Missing dropdown label: " + id, label);
+    }
+
+    private static void assertOptions(Document strings, String name, String... expected) {
+        NodeList arrays = strings.getElementsByTagName("string-array");
+        for (int i = 0; i < arrays.getLength(); i++) {
+            Element array = (Element) arrays.item(i);
+            if (!name.equals(array.getAttribute("name"))) {
+                continue;
+            }
+            NodeList items = array.getElementsByTagName("item");
+            assertEquals(expected.length, items.getLength());
+            for (int j = 0; j < expected.length; j++) {
+                Node item = items.item(j);
+                assertEquals(expected[j], item.getTextContent());
+            }
+            return;
+        }
+        throw new AssertionError("Missing options: " + name);
+    }
+}

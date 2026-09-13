@@ -2,14 +2,18 @@
 
 ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It opens directly to `https://music.youtube.com/` with no address bar, keeps normal WebView cookies/history, blocks common ad and tracking requests, and provides an in-app settings panel for:
 
-- mobile or desktop user agent mode
-- system, light, or dark app theme
+- mobile or desktop user agent mode dropdown
+- system, light, or dark app theme dropdown
 - video display default for showing the song thumbnail instead of available video
 - an **Open supported links** shortcut to Android's settings for handling `music.youtube.com` links
 - **Check for updates** using this repository's latest GitHub release
 - back, forward, refresh, and home navigation
 - optional debug logging
 - a **Stats for nerds** overlay with live memory, network, and storage usage
+
+Supported links, logging, and Stats for nerds are grouped under **Advanced**, which starts
+collapsed whenever settings is opened. Tap **Advanced** to expand or collapse those controls.
+**View log**, **Share log**, and **Clear log** appear together in one row.
 
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
 to the WebView from a synthetic same-origin path instead of the network.
@@ -20,7 +24,7 @@ thumbnail is shown. Taps and player controls retain their normal behavior.
 
 ## Supported links
 
-To open YouTube Music links in ssMusic, choose **Open supported links** in the settings
+To open YouTube Music links in ssMusic, expand **Advanced** and choose **Open supported links** in the settings
 panel, enable the Android setting, and select `music.youtube.com` if prompted. Android 12+
 opens the app's link settings directly; older devices (or devices without that screen)
 open App info, where **Open by default** can be configured. Android requires user approval;
@@ -41,7 +45,7 @@ installed silently. Checking and downloading require an internet connection.
 
 ## Stats for nerds
 
-Enable **Stats for nerds** under **Diagnostics** in settings. The preference is saved, and
+Enable **Stats for nerds** under **Advanced → Diagnostics** in settings. The preference is saved, and
 the touch-through overlay stays above the app content but below settings, so playback and
 navigation remain usable. Settings can be scrolled on smaller screens.
 
@@ -56,7 +60,7 @@ every 30 seconds on a worker thread. Sampling stops when disabled or the app is 
 
 ## Logging
 
-Logging is off by default. Turn on **Enable logging** in the settings panel to record app
+Logging is off by default. Expand **Advanced** and turn on **Enable logging** in the settings panel to record app
 activity — lifecycle events, navigation, permission decisions, blocked ad requests, playback
 state, media notification commands, media-player swipes (direction, action, and whether the
 control was clicked or unavailable), and uncaught exceptions. Every entry names the calling

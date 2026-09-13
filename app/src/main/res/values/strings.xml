@@ -22,6 +22,19 @@
     <string name="site_mode">Site mode</string>
     <string name="site_mode_mobile">Mobile site</string>
     <string name="site_mode_desktop">Desktop site</string>
+    <string-array name="theme_options">
+        <item>@string/theme_system</item>
+        <item>@string/theme_light</item>
+        <item>@string/theme_dark</item>
+    </string-array>
+    <string-array name="site_mode_options">
+        <item>@string/site_mode_mobile</item>
+        <item>@string/site_mode_desktop</item>
+    </string-array>
+    <string name="advanced_collapsed">Advanced ▾</string>
+    <string name="advanced_expanded">Advanced ▴</string>
+    <string name="advanced_expand_accessibility">Advanced, collapsed. Tap to expand.</string>
+    <string name="advanced_collapse_accessibility">Advanced, expanded. Tap to collapse.</string>
     <string name="video_playback">Video playback</string>
     <string name="show_thumbnail_for_videos">Show song thumbnail for videos</string>
     <string name="show_thumbnail_for_videos_summary">Use the song thumbnail instead of video by default when a video is available.</string>

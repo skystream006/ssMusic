@@ -30,59 +30,33 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:labelFor="@+id/theme_spinner"
         android:text="@string/appearance"
         android:textStyle="bold" />
 
-    <RadioGroup
-        android:id="@+id/theme_group"
+    <Spinner
+        android:id="@+id/theme_spinner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <RadioButton
-            android:id="@+id/theme_system"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/theme_system" />
-
-        <RadioButton
-            android:id="@+id/theme_light"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/theme_light" />
-
-        <RadioButton
-            android:id="@+id/theme_dark"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/theme_dark" />
-    </RadioGroup>
+        android:minHeight="48dp"
+        android:entries="@array/theme_options"
+        android:spinnerMode="dropdown" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        android:labelFor="@+id/site_mode_spinner"
         android:text="@string/site_mode"
         android:textStyle="bold" />
 
-    <RadioGroup
-        android:id="@+id/site_mode_group"
+    <Spinner
+        android:id="@+id/site_mode_spinner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <RadioButton
-            android:id="@+id/site_mode_mobile"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/site_mode_mobile" />
-
-        <RadioButton
-            android:id="@+id/site_mode_desktop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/site_mode_desktop" />
-    </RadioGroup>
+        android:minHeight="48dp"
+        android:entries="@array/site_mode_options"
+        android:spinnerMode="dropdown" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -107,94 +81,129 @@
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="12sp" />
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/supported_links"
-        android:textStyle="bold" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/supported_links_summary"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="12sp" />
-
     <Button
-        android:id="@+id/open_supported_links_button"
+        android:id="@+id/advanced_button"
         style="?android:attr/borderlessButtonStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/open_supported_links" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="@string/diagnostics"
-        android:textStyle="bold" />
-
-    <Switch
-        android:id="@+id/stats_for_nerds_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:contentDescription="@string/stats_for_nerds_accessibility"
-        android:text="@string/stats_for_nerds"
-        tools:ignore="UseSwitchCompatOrMaterialXml" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:importantForAccessibility="no"
-        android:text="@string/stats_for_nerds_summary"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="12sp" />
-
-    <Switch
-        android:id="@+id/logging_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:contentDescription="@string/enable_logging_accessibility"
-        android:text="@string/enable_logging"
-        tools:ignore="UseSwitchCompatOrMaterialXml" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:importantForAccessibility="no"
-        android:text="@string/enable_logging_summary"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="12sp" />
-
-    <Button
-        android:id="@+id/view_log_button"
-        style="?android:attr/borderlessButtonStyle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/view_log" />
+        android:gravity="start|center_vertical"
+        android:text="@string/advanced_collapsed"
+        android:textAllCaps="false" />
 
     <LinearLayout
+        android:id="@+id/advanced_settings"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/supported_links"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/supported_links_summary"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
 
         <Button
-            android:id="@+id/share_log_button"
+            android:id="@+id/open_supported_links_button"
             style="?android:attr/borderlessButtonStyle"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/share_log" />
+            android:text="@string/open_supported_links" />
 
-        <Button
-            android:id="@+id/clear_log_button"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="0dp"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/clear_log" />
+            android:layout_marginTop="16dp"
+            android:text="@string/diagnostics"
+            android:textStyle="bold" />
+
+        <Switch
+            android:id="@+id/stats_for_nerds_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/stats_for_nerds_accessibility"
+            android:text="@string/stats_for_nerds"
+            tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAccessibility="no"
+            android:text="@string/stats_for_nerds_summary"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
+
+        <Switch
+            android:id="@+id/logging_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/enable_logging_accessibility"
+            android:text="@string/enable_logging"
+            tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAccessibility="no"
+            android:text="@string/enable_logging_summary"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:id="@+id/log_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/view_log_button"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:maxLines="1"
+                android:textAllCaps="false"
+                android:text="@string/view_log" />
+
+            <Button
+                android:id="@+id/share_log_button"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:maxLines="1"
+                android:textAllCaps="false"
+                android:text="@string/share_log" />
+
+            <Button
+                android:id="@+id/clear_log_button"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:maxLines="1"
+                android:textAllCaps="false"
+                android:text="@string/clear_log" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
