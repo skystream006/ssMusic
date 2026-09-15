@@ -98,4 +98,17 @@ public class CompactPlayerScriptTest {
         assertTrue(script.contains("if (!suspended && timer === null)"));
         assertFalse(script.contains("setInterval("));
     }
+
+    @Test
+    public void refreshesThumbnailOnlyAfterPresentationGeometryChanges() throws IOException {
+        String script = script();
+        assertTrue(script.contains("!suspended && typeof window.__ssmusicApplyVideoDisplay === 'function'"));
+        assertTrue(script.contains("window.__ssmusicApplyVideoDisplay()"));
+        assertTrue(script.contains("active = null;\n        refreshVideoDisplay();"));
+        assertTrue(script.contains(
+                "var geometryChanged = compactStyle.textContent !== css || !compactStyle.isConnected"));
+        assertTrue(script.contains("if (geometryChanged) {\n            refreshVideoDisplay();"));
+        assertTrue(script.indexOf("document.head.appendChild(compactStyle)")
+                < script.indexOf("if (geometryChanged)"));
+    }
 }

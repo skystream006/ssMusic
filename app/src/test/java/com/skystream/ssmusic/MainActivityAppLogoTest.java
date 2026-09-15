@@ -69,6 +69,23 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void thumbnailUsesUntransformedHostCoordinatesIncludingBordersAndScroll() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("host.offsetWidth>0?hostRect.width/host.offsetWidth:0"));
+        assertTrue(script.contains("host.offsetHeight>0?hostRect.height/host.offsetHeight:0"));
+        assertTrue(script.contains("Number.isFinite(scaleX)&&scaleX>0"));
+        assertTrue(script.contains("Number.isFinite(scaleY)&&scaleY>0"));
+        assertTrue(script.contains("(videoRect.left-hostRect.left)/scaleX-host.clientLeft+host.scrollLeft"));
+        assertTrue(script.contains("(videoRect.top-hostRect.top)/scaleY-host.clientTop+host.scrollTop"));
+        assertTrue(script.contains("(videoRect.width/scaleX)+'px'"));
+        assertTrue(script.contains("(videoRect.height/scaleY)+'px'"));
+        assertTrue(script.contains("cover.style.setProperty('width','100%','important')"));
+        assertTrue(script.contains("cover.style.setProperty('height','100%','important')"));
+        assertTrue(script.contains("node.style.setProperty('opacity',hiddenOpacity,hiddenPriority)"));
+    }
+
+    @Test
     public void videoDisplayScriptMapsSwipesToCompactAndExistingTransportControls() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");

@@ -78,6 +78,12 @@
         node.setAttribute(ROLE, value);
     }
 
+    function refreshVideoDisplay() {
+        if (!suspended && typeof window.__ssmusicApplyVideoDisplay === 'function') {
+            window.__ssmusicApplyVideoDisplay();
+        }
+    }
+
     function expand() {
         if (!active) {
             return false;
@@ -93,6 +99,7 @@
             }
         });
         active = null;
+        refreshVideoDisplay();
         schedule();
         return true;
     }
@@ -126,11 +133,15 @@
             + 'height:calc(100vh - ' + (window.innerHeight - candidate.bar.getBoundingClientRect().top)
             + 'px - var(--ytmusic-nav-bar-height,64px))!important}'
             + '[' + ROLE + '="layout"],[' + ROLE + '="body"],[' + ROLE + '="root"]{overflow:auto!important}';
+        var geometryChanged = compactStyle.textContent !== css || !compactStyle.isConnected;
         if (compactStyle.textContent !== css) {
             compactStyle.textContent = css;
         }
         if (!compactStyle.isConnected) {
             document.head.appendChild(compactStyle);
+        }
+        if (geometryChanged) {
+            refreshVideoDisplay();
         }
         return true;
     }
