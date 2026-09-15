@@ -69,10 +69,10 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
-    public void videoDisplayScriptMapsSwipesToExistingPlayerControls() {
+    public void videoDisplayScriptMapsSwipesToCompactAndExistingTransportControls() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("action==='down'?'ytmusic-player-page .player-minimize-button"));
+        assertTrue(script.contains("if(action==='down'){var compact=window.__ssmusicCompactPlayer;"));
         assertTrue(script.contains("action==='left'?'ytmusic-player-bar .previous-button"));
         assertTrue(script.contains(":'ytmusic-player-bar .next-button"));
         assertTrue(script.contains("var control=swipeControl(action);if(control){control.click();}"));
@@ -80,17 +80,21 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
-    public void videoDisplaySwipeDownSupportsMobileAndDesktopMinimizeControls() {
+    public void videoDisplaySwipeDownUsesAppPresentationOnlyAfterGenerationAndMediaGuards() {
         for (boolean showThumbnail : new boolean[]{true, false}) {
             String script = MainActivity.videoDisplayScript(
                     showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
-            assertTrue(script.contains("var selector=action==='down'"
-                    + "?'ytmusic-player-page .player-minimize-button,ytmusic-player-bar .player-minimize-button,"
-                    + "ytmusic-player-page .collapse-button,ytmusic-player-bar .toggle-player-page-button,"
-                    + "ytmusic-player-page [aria-label=\"Minimize player\"],ytmusic-player-page [title=\"Minimize player\"]'"));
+            assertFalse(script.contains(".player-minimize-button"));
+            assertFalse(script.contains(".toggle-player-page-button"));
+            int compactDispatch = script.indexOf("if(action==='down'){");
             int expandedPlayerGuard = script.indexOf("||!mediaPage(gesture.node)");
             assertTrue(expandedPlayerGuard >= 0);
-            assertTrue(expandedPlayerGuard < script.indexOf("var control=swipeControl(action)"));
+            assertTrue(expandedPlayerGuard < compactDispatch);
+            assertTrue(script.indexOf("gesture.id!==id") < compactDispatch);
+            assertTrue(script.indexOf("return 'rejected: unknown direction'") < compactDispatch);
+            assertTrue(compactDispatch < script.indexOf("var control=swipeControl(action)"));
+            assertTrue(script.contains("return 'Media player swipe down: compact '"
+                    + "+(compact&&compact.compact()?'applied':'unavailable');}"));
             assertTrue(script.contains("!control.disabled&&!control.hasAttribute('disabled')"
                     + "&&control.getAttribute('aria-disabled')!=='true'"));
             assertTrue(script.contains("rect.width>0&&rect.height>0"
@@ -102,8 +106,7 @@ public class MainActivityAppLogoTest {
     public void videoDisplaySwipesReturnActionDiagnosticsToNativeLogger() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("var command=action==='down'?'minimize'"
-                + ":action==='up'?'up next':action==='left'?'previous':'next';"));
+        assertTrue(script.contains("var command=action==='up'?'up next':action==='left'?'previous':'next';"));
         assertTrue(script.contains("return 'Media player swipe '+action+': '+command"
                 + "+(control?' control clicked':' control unavailable');"));
         assertTrue(script.contains("return 'rejected: no hit target'"));
@@ -118,11 +121,11 @@ public class MainActivityAppLogoTest {
             String script = MainActivity.videoDisplayScript(
                     showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
             assertTrue(script.contains(
-                    ":action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"));
+                    "var selector=action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"));
             assertTrue(script.contains(
                     "for(var i=0;i<controls.length&&(action!=='up'||i===0);i++){"));
             assertTrue(script.contains("var control=swipeControl(action);if(control){control.click();}"));
-            assertTrue(script.contains(":action==='up'?'up next':"));
+            assertTrue(script.contains("var command=action==='up'?'up next':"));
         }
     }
 

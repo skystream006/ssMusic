@@ -694,11 +694,7 @@ public class MainActivity extends AppCompatActivity {
                 + "&&getComputedStyle(page).visibility!=='hidden'?page:null;"
                 + "}"
                 + "function swipeControl(action){"
-                + "var selector=action==='down'"
-                + "?'ytmusic-player-page .player-minimize-button,ytmusic-player-bar .player-minimize-button,"
-                + "ytmusic-player-page .collapse-button,ytmusic-player-bar .toggle-player-page-button,"
-                + "ytmusic-player-page [aria-label=\"Minimize player\"],ytmusic-player-page [title=\"Minimize player\"]'"
-                + ":action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"
+                + "var selector=action==='up'?'ytmusic-player-page .tab-header.ytmusic-player-page'"
                 + ":action==='left'"
                 + "?'ytmusic-player-bar .previous-button,ytmusic-player-controls .previous-button'"
                 + ":'ytmusic-player-bar .next-button,ytmusic-player-controls .next-button';"
@@ -749,8 +745,12 @@ public class MainActivity extends AppCompatActivity {
                 + "if(location.origin!=='https://music.youtube.com'||navigating||!gesture||gesture.id!==id"
                 + "||gesture.url!==location.href||!mediaPage(gesture.node)){return 'rejected: stale media gesture';}"
                 + "if(['down','up','left','right'].indexOf(action)<0){return 'rejected: unknown direction';}"
+                + "if(action==='down'){"
+                + "var compact=window.__ssmusicCompactPlayer;"
+                + "return 'Media player swipe down: compact '+(compact&&compact.compact()?'applied':'unavailable');"
+                + "}"
                 + "var control=swipeControl(action);if(control){control.click();}"
-                + "var command=action==='down'?'minimize':action==='up'?'up next':action==='left'?'previous':'next';"
+                + "var command=action==='up'?'up next':action==='left'?'previous':'next';"
                 + "return 'Media player swipe '+action+': '+command"
                 + "+(control?' control clicked':' control unavailable');"
                 + "};"
@@ -811,6 +811,7 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService passwordExecutor = Executors.newSingleThreadExecutor();
     private ScriptHandler kidModeScriptHandler;
     private String kidModeScript;
+    private String compactPlayerScript;
     private boolean clearHistoryAfterLoad;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
@@ -1057,6 +1058,26 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return kidModeScript;
+    }
+
+    private String compactPlayerScript() {
+        if (compactPlayerScript == null) {
+            try (InputStream input = getAssets().open("compact_player.js");
+                    ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                }
+                compactPlayerScript = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new IllegalStateException("Compact player script unavailable", e);
+            }
+        }
+        return "window.__ssmusicCompactPlayerLabels={compact:"
+                + jsStringLiteral(getString(R.string.compact_player_button))
+                + ",expand:" + jsStringLiteral(getString(R.string.expand_player_button))
+                + "};" + compactPlayerScript;
     }
 
     private void updateKidModeScript() {
@@ -1569,6 +1590,7 @@ public class MainActivity extends AppCompatActivity {
         view.evaluateJavascript(OPEN_APP_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
+        view.evaluateJavascript(compactPlayerScript(), null);
         view.evaluateJavascript(videoDisplayScript(isShowVideoThumbnailDefault(),
                 getString(R.string.show_thumbnail_button),
                 getString(R.string.show_video_button),
