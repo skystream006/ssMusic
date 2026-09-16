@@ -74,6 +74,7 @@ public class PlaybackKeepAliveService extends Service {
     // Thumbnail state is mutated only on the service main thread; background work posts results.
     private int thumbnailRequestVersion;
     private boolean destroyed;
+    private boolean foreground;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ExecutorService thumbnailExecutor;
 
@@ -90,11 +91,20 @@ public class PlaybackKeepAliveService extends Service {
             activateMediaSession();
             handleAction(intent, false);
             Notification notification = buildNotification();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            if (foreground) {
+                NotificationManager manager =
+                        (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (manager != null) {
+                    manager.notify(NOTIFICATION_ID, notification);
+                }
             } else {
-                startForeground(NOTIFICATION_ID, notification);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(NOTIFICATION_ID, notification,
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    startForeground(NOTIFICATION_ID, notification);
+                }
+                foreground = true;
             }
             // The notification stays up while paused so transport buttons keep working,
             // but the wake lock is only needed while audio is actually playing. The WebView owns
@@ -110,8 +120,11 @@ public class PlaybackKeepAliveService extends Service {
                 stopPlayback();
             }
         } catch (RuntimeException e) {
-            Logger.error(TAG, "Unable to start playback notification", e);
-            stopSelf();
+            Logger.error(TAG, "Unable to update playback notification", e);
+            // A failed refresh must not tear down an already established playback service.
+            if (!foreground || ACTION_STOP.equals(intent == null ? null : intent.getAction())) {
+                stopSelf();
+            }
             return START_NOT_STICKY;
         }
         return START_NOT_STICKY;
@@ -137,6 +150,7 @@ public class PlaybackKeepAliveService extends Service {
         } else {
             stopForeground(true);
         }
+        foreground = false;
         stopSelf();
     }
 

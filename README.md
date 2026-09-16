@@ -102,6 +102,11 @@ so a gesture that never reaches the page's touch handlers is no longer silent.
 
 The app requests the browser permissions YouTube Music may need, including camera, microphone, notification, and foreground playback permissions. When you send the app to the background, it keeps a low-priority playback notification active so music can continue playing.
 
+Buffering keeps the playback service active, and pausing retains notification controls so you can
+resume without reopening the app. Audio focus remains managed by WebView: calls and other audio
+apps can still interrupt playback. Force-stopping the app or device-specific battery restrictions
+can stop playback and remove its notification.
+
 ## Build
 
 ```sh
