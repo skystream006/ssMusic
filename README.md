@@ -22,7 +22,8 @@ to the WebView from a synthetic same-origin path instead of the network.
 
 In the expanded media view, swipe down on the video area to compact the player, up to
 open **Up next**, left for the previous song, or right for the next song. These gestures also work while the song
-thumbnail is shown. Taps and player controls retain their normal behavior.
+thumbnail is shown. Swipes are disabled on compact/minimized media and all other pages.
+Taps and player controls retain their normal behavior.
 
 The experimental **Compact player** shrinks the existing player page above the transport bar and exposes the
 browse surface; **Expand player** restores its presentation. Dedicated native minimize/toggle
