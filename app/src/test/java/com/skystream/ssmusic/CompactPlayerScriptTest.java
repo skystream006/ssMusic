@@ -111,4 +111,46 @@ public class CompactPlayerScriptTest {
         assertTrue(script.indexOf("document.head.appendChild(compactStyle)")
                 < script.indexOf("if (geometryChanged)"));
     }
+
+    @Test
+    public void transientGeometryDoesNotDiscardCompactPresentation() throws IOException {
+        String script = script();
+        String current = script.substring(script.indexOf("function current()"),
+                script.indexOf("function same("));
+        assertFalse(current.contains("rect.width <= 0"));
+        assertFalse(current.contains("getComputedStyle"));
+        assertTrue(script.contains("if (active && !same(candidate)) {\n            expand();"));
+        assertFalse(script.contains("!same(candidate) || !present(candidate)"));
+        assertTrue(script.contains("if (active && !present(candidate)) {\n"
+                + "            button.hidden = true;\n            return;"));
+        assertTrue(script.contains("if (!geometry(candidate))"));
+        assertTrue(script.contains("!Number.isFinite(scale)"));
+        assertTrue(script.contains("barRect.bottom > window.innerHeight + 1"));
+    }
+
+    @Test
+    public void cachedPageRetainsPresentationButUnloadedPageCleansUp() throws IOException {
+        String script = script();
+        String hide = script.substring(script.indexOf("window.addEventListener('pagehide'"),
+                script.indexOf("window.addEventListener('pageshow'"));
+        assertTrue(hide.contains("suspended = true"));
+        assertTrue(hide.contains("observer.disconnect()"));
+        assertTrue(hide.contains("if (!event.persisted) {\n            expand();"));
+        assertTrue(script.contains("suspended = false;\n        observe();\n        schedule();"));
+    }
+
+    @Test
+    public void foregroundRefreshesExistingControllersWithoutReinjectingOrReloading() throws IOException {
+        String activity = read("main/java/com/skystream/ssmusic/MainActivity.java");
+        String resume = activity.substring(activity.indexOf("protected void onResume()"),
+                activity.indexOf("protected void onPause()"));
+        assertTrue(resume.contains("webView.post("));
+        assertTrue(resume.contains("SiteScope.isPlaybackUrl(webView.getUrl())"));
+        assertTrue(resume.contains("window.__ssmusicCompactPlayer.refresh()"));
+        assertTrue(resume.contains("window.__ssmusicApplyVideoDisplay()"));
+        assertTrue(script().contains("refresh: schedule"));
+        assertFalse(resume.contains("injectPageScripts("));
+        assertFalse(resume.contains("reload("));
+        assertFalse(resume.contains("loadUrl("));
+    }
 }
