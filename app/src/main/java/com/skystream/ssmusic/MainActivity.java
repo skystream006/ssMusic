@@ -463,7 +463,7 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!node.paused&&!node.ended&&node.readyState>2){"
                     + "active=node;playing=true;break;"
                     + "}"
-                    + "if(!tentative&&!node.paused&&!node.ended&&node.readyState>=2){"
+                    + "if(!tentative&&!node.paused&&!node.ended){"
                     + "tentative=node;"
                     + "}"
                     + "if(typeof node.currentTime==='number'&&isFinite(node.currentTime)&&node.currentTime>position){"
@@ -530,6 +530,8 @@ public class MainActivity extends AppCompatActivity {
                     + "safeReport();"
                     + "};"
                     + "document.addEventListener('play',scheduleReport,true);"
+                    + "document.addEventListener('playing',scheduleReport,true);"
+                    + "document.addEventListener('waiting',scheduleReport,true);"
                     + "document.addEventListener('pause',scheduleReport,true);"
                     + "document.addEventListener('ended',scheduleReport,true);"
                     + "window.addEventListener('pagehide',scheduleReport);"
@@ -908,6 +910,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         appUpdater.onPause();
+        // Establish the foreground service while the activity is still visible, not after onStop.
+        if (!isFinishing() && isPlaybackLikelyActive()) {
+            startPlaybackKeepAliveService(playbackActive ? Boolean.TRUE : null);
+        }
         super.onPause();
         Logger.debug(TAG, "App paused and no longer interactive");
     }
@@ -930,9 +936,6 @@ public class MainActivity extends AppCompatActivity {
         capturePlaybackPosition();
         persistLocation(webView.getUrl());
         CookieManager.getInstance().flush();
-        if (!isFinishing() && isPlaybackLikelyActive()) {
-            startPlaybackKeepAliveService(playbackActive ? Boolean.TRUE : null);
-        }
     }
 
     @Override
@@ -1722,7 +1725,8 @@ public class MainActivity extends AppCompatActivity {
         serviceIntent.putExtra(PlaybackKeepAliveService.EXTRA_SYNC_START_TOKEN,
                 ++keepAliveStartToken);
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // State updates must not create a new foreground-start obligation in the background.
+            if (!keepAliveServiceRunning && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
             } else {
                 startService(serviceIntent);
