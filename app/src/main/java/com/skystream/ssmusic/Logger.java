@@ -12,19 +12,29 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Optional debug logging. Disabled by default; when the user turns it on from the settings
- * panel every app activity is written, with a stack trace, to a rotating file in the app's
+ * panel every app activity is written to a rotating or recent-message file in the app's
  * private storage and mirrored to logcat.
  */
 public final class Logger {
 
     static final String PREFS_NAME = "ssmusic_prefs";
     static final String KEY_LOGGING_ENABLED = "logging_enabled";
+    static final String KEY_LOGGING_MODE = "logging_mode";
+    public enum Mode {
+        FULL, REACTIVE;
+
+        static Mode fromPreference(String value) {
+            return REACTIVE.name().equals(value) ? REACTIVE : FULL;
+        }
+    }
     static final String LOG_DIRECTORY = "logs";
     static final String LOG_FILE_NAME = "ssmusic.log";
     static final String LOG_BACKUP_FILE_NAME = "ssmusic-previous.log";
@@ -34,9 +44,12 @@ public final class Logger {
             "Enable logging in settings to capture diagnostics.";
     private static final Charset UTF_8 = Charset.forName("UTF-8");
     private static final Object FILE_LOCK = new Object();
+    private static final Object QUEUE_LOCK = new Object();
+    private static Deque<String> pendingReactiveEntries;
 
     private static volatile Context appContext;
     private static volatile boolean enabled;
+    private static volatile Mode mode = Mode.FULL;
     private static final AtomicBoolean enableLoggingReminderShown = new AtomicBoolean();
     private static volatile ExecutorService writer;
     private static boolean crashHandlerInstalled;
@@ -53,6 +66,10 @@ public final class Logger {
         SharedPreferences preferences =
                 appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         enabled = preferences.getBoolean(KEY_LOGGING_ENABLED, false);
+        synchronized (FILE_LOCK) {
+            mode = Mode.fromPreference(preferences.getString(KEY_LOGGING_MODE, null));
+        }
+        prepareReactiveLog();
         installCrashHandler();
         if (enabled) {
             ensureWriter();
@@ -61,6 +78,22 @@ public final class Logger {
 
     public static boolean isEnabled() {
         return enabled;
+    }
+
+    public static Mode getMode() {
+        return mode;
+    }
+
+    /** Enables the chosen mode; older installations without a mode keep full logging. */
+    public static synchronized void enable(Context context, Mode selectedMode) {
+        if (context != null && appContext == null) {
+            appContext = context.getApplicationContext();
+        }
+        synchronized (FILE_LOCK) {
+            mode = selectedMode == null ? Mode.FULL : selectedMode;
+        }
+        prepareReactiveLog();
+        setEnabled(context, true);
     }
 
     /** Turns logging on or off and remembers the choice. */
@@ -72,6 +105,7 @@ public final class Logger {
             appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     .edit()
                     .putBoolean(KEY_LOGGING_ENABLED, value)
+                    .putString(KEY_LOGGING_MODE, mode.name())
                     .apply();
         }
         if (value && !enabled) {
@@ -124,7 +158,7 @@ public final class Logger {
     /** Reads a snapshot off the UI thread, after entries already queued on the writer. */
     public static synchronized void readCurrentLog(Context context, LogReadCallback callback) {
         File file = logFile(context);
-        ensureWriter().execute(() -> {
+        executeFileOperation(() -> {
             String text = "";
             IOException error = null;
             try {
@@ -167,13 +201,13 @@ public final class Logger {
             synchronized (FILE_LOCK) {
                 deleteQuietly(new File(directory, LOG_FILE_NAME));
                 deleteQuietly(new File(directory, LOG_BACKUP_FILE_NAME));
+                deleteQuietly(new File(directory, LOG_FILE_NAME + ReactiveLogFile.PENDING_SUFFIX));
             }
         };
         // Delete on the writer thread so entries queued before the clear cannot be written
         // into the new file afterwards.
-        ExecutorService executor = ensureWriter();
         try {
-            executor.execute(delete);
+            executeFileOperation(delete);
         } catch (RuntimeException e) {
             delete.run();
         }
@@ -186,16 +220,50 @@ public final class Logger {
         }
         StackTraceElement[] callerTrace = new Throwable().getStackTrace();
         long timeMillis = System.currentTimeMillis();
-        String entry = LogFormat.entry(timeMillis, level, tag, message, throwable, callerTrace);
+        String entry = formatEntry(timeMillis, level, tag, message, throwable, callerTrace);
         logToLogcat(level, tag, message, throwable);
-        ExecutorService executor = ensureWriter();
-        if (executor == null) {
-            return;
-        }
         try {
-            executor.execute(() -> appendToFile(entry));
+            if (mode == Mode.REACTIVE) {
+                queueReactiveEntry(entry);
+            } else {
+                executeFileOperation(() -> appendToFile(entry));
+            }
         } catch (RuntimeException e) {
             Log.w(LOGCAT_TAG, "Unable to queue log entry", e);
+        }
+    }
+
+    private static void queueReactiveEntry(String entry) {
+        ExecutorService executor = ensureWriter();
+        synchronized (QUEUE_LOCK) {
+            if (pendingReactiveEntries == null) {
+                Deque<String> batch = new ArrayDeque<>(ReactiveLogFile.MAX_ENTRIES);
+                pendingReactiveEntries = batch;
+                executor.execute(() -> {
+                    synchronized (QUEUE_LOCK) {
+                        if (pendingReactiveEntries == batch) {
+                            pendingReactiveEntries = null;
+                        }
+                    }
+                    for (String pending : batch) {
+                        appendToFile(pending);
+                    }
+                });
+            }
+            // A slow disk must not build an unbounded queue of superseded diagnostics.
+            if (pendingReactiveEntries.size() == ReactiveLogFile.MAX_ENTRIES) {
+                pendingReactiveEntries.removeFirst();
+            }
+            pendingReactiveEntries.addLast(ReactiveLogFile.bound(entry));
+        }
+    }
+
+    private static void executeFileOperation(Runnable operation) {
+        ExecutorService executor = ensureWriter();
+        synchronized (QUEUE_LOCK) {
+            // Seal the pending batch so later entries cannot cross a read or clear boundary.
+            pendingReactiveEntries = null;
+            executor.execute(operation);
         }
     }
 
@@ -251,6 +319,15 @@ public final class Logger {
                 return;
             }
             File file = new File(directory, LOG_FILE_NAME);
+            if (mode == Mode.REACTIVE) {
+                try {
+                    ReactiveLogFile.append(file, entry);
+                    deleteQuietly(new File(directory, LOG_BACKUP_FILE_NAME));
+                } catch (IOException e) {
+                    Log.w(LOGCAT_TAG, "Unable to write reactive log entry", e);
+                }
+                return;
+            }
             if (file.length() > LogFormat.MAX_FILE_BYTES) {
                 File backup = new File(directory, LOG_BACKUP_FILE_NAME);
                 deleteQuietly(backup);
@@ -264,6 +341,27 @@ public final class Logger {
             } catch (IOException e) {
                 Log.w(LOGCAT_TAG, "Unable to write log entry", e);
             }
+        }
+    }
+
+    private static String formatEntry(long timeMillis, String level, String tag, String message,
+            Throwable throwable, StackTraceElement[] callerTrace) {
+        return mode == Mode.REACTIVE
+                ? LogFormat.reactiveEntry(timeMillis, level, tag, message, throwable, callerTrace)
+                : LogFormat.entry(timeMillis, level, tag, message, throwable, callerTrace);
+    }
+
+    private static void prepareReactiveLog() {
+        if (mode == Mode.REACTIVE) {
+            // Use the same queue and lock as writes. Queued old-mode entries also obey the
+            // current mode, so neither they nor a synchronous crash can undo retention.
+            executeFileOperation(() -> {
+                synchronized (FILE_LOCK) {
+                    if (mode == Mode.REACTIVE) {
+                        appendToFile(null);
+                    }
+                }
+            });
         }
     }
 
@@ -294,7 +392,7 @@ public final class Logger {
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             try {
                 if (enabled) {
-                    String entry = LogFormat.entry(System.currentTimeMillis(), "E", "Crash",
+                    String entry = formatEntry(System.currentTimeMillis(), "E", "Crash",
                             "Uncaught exception on thread " + thread.getName(), throwable, null);
                     appendToFile(entry);
                 }

@@ -2,6 +2,7 @@ package com.skystream.ssmusic;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.Writer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -42,12 +43,17 @@ public final class LogFormat {
      */
     public static String entry(long timeMillis, String level, String tag, String message,
             Throwable throwable, StackTraceElement[] callerTrace) {
+        return entry(timeMillis, level, tag, message, throwable, callerTrace, false);
+    }
+
+    private static String entry(long timeMillis, String level, String tag, String message,
+            Throwable throwable, StackTraceElement[] callerTrace, boolean reactive) {
         StringBuilder line = new StringBuilder();
         line.append(timestamp(timeMillis))
                 .append(' ')
                 .append(level == null || level.isEmpty() ? "I" : level)
                 .append('/')
-                .append(tag == null || tag.isEmpty() ? "ssMusic" : tag)
+                .append(tag == null || tag.isEmpty() ? "ssMusic" : sanitize(tag))
                 .append(": ")
                 .append(sanitize(message));
         String caller = callerLocation(callerTrace);
@@ -56,7 +62,7 @@ public final class LogFormat {
         }
         line.append('\n');
         String trace = throwable != null
-                ? stackTraceOf(throwable)
+                ? (reactive ? boundedStackTraceOf(throwable) : stackTraceOf(throwable))
                 : (tracesCallerFor(level) ? stackTraceOf(callerTrace) : null);
         if (trace != null && !trace.isEmpty()) {
             line.append(trace);
@@ -64,7 +70,45 @@ public final class LogFormat {
                 line.append('\n');
             }
         }
-        return line.toString();
+        return reactive ? ReactiveLogFile.bound(line.toString()) : line.toString();
+    }
+
+    /** Bounds exceptional diagnostics before formatting, without changing full logging. */
+    static String reactiveEntry(long timeMillis, String level, String tag, String message,
+            Throwable throwable, StackTraceElement[] callerTrace) {
+        return entry(timeMillis, level, boundedText(tag), boundedText(message), throwable,
+                callerTrace, true);
+    }
+
+    private static String boundedStackTraceOf(Throwable throwable) {
+        StringBuilder buffer = new StringBuilder();
+        Writer boundedWriter = new Writer() {
+            @Override
+            public void write(char[] chars, int offset, int length) {
+                int remaining = ReactiveLogFile.MAX_ENTRY_CHARS - buffer.length();
+                buffer.append(chars, offset, Math.min(remaining, length));
+            }
+
+            @Override
+            public void write(String text, int offset, int length) {
+                int remaining = ReactiveLogFile.MAX_ENTRY_CHARS - buffer.length();
+                buffer.append(text, offset, offset + Math.min(remaining, length));
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        throwable.printStackTrace(new PrintWriter(boundedWriter));
+        return indent(buffer.toString());
+    }
+
+    private static String boundedText(String text) {
+        return text == null ? null : ReactiveLogFile.prefix(text, MAX_MESSAGE_LENGTH + 1);
     }
 
     /** Levels whose entries carry the caller's stack trace even without a throwable. */
@@ -84,7 +128,7 @@ public final class LogFormat {
         }
         String single = WHITESPACE.matcher(message).replaceAll(" ").trim();
         return single.length() <= MAX_MESSAGE_LENGTH
-                ? single : single.substring(0, MAX_MESSAGE_LENGTH) + "…";
+                ? single : ReactiveLogFile.prefix(single, MAX_MESSAGE_LENGTH) + "…";
     }
 
     /** Returns the first application frame outside the logging classes, or {@code null}. */

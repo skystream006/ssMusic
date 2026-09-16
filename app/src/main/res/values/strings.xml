@@ -74,8 +74,15 @@
     <string name="stats_network">Network (app UID): ↓ %1$s · ↑ %2$s</string>
     <string name="stats_storage">Storage (data + cache): %1$s</string>
     <string name="enable_logging">Enable logging</string>
-    <string name="enable_logging_summary">Record app activity and stack traces to a log file for debugging.</string>
-    <string name="enable_logging_accessibility">Enable logging. Records app activity and stack traces to a log file for debugging.</string>
+    <string name="enable_logging_summary">Choose full or reactive logging to record app activity and stack traces. Turn off and on again to change mode.</string>
+    <string name="enable_logging_accessibility">Enable logging. Choose full logging or reactive logging with the latest 100 messages.</string>
+    <string name="logging_mode_title">Choose logging mode</string>
+    <string name="logging_full">Full logging — 512 KB rotating files, until turned off</string>
+    <string name="logging_reactive">Reactive logging — latest 100 messages, until turned off</string>
+    <string-array name="logging_modes">
+        <item>@string/logging_full</item>
+        <item>@string/logging_reactive</item>
+    </string-array>
     <string name="share_log">Share log</string>
     <string name="view_log">View log</string>
     <string name="log_loading">Loading log…</string>

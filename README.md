@@ -97,12 +97,24 @@ every 30 seconds on a worker thread. Sampling stops when disabled or the app is 
 
 ## Logging
 
-Logging is off by default. Expand **Advanced** and turn on **Enable logging** in the settings panel to record app
+Logging is off by default. Expand **Advanced** and turn on **Enable logging**, then choose:
+
+- **Full logging**: the existing 512 KB rotation with one backup.
+- **Reactive logging**: keeps the latest 100 messages in one bounded file, dropping the oldest
+  message with its entire stack trace. Switching to this mode trims the current file and removes
+  the full-log backup. Exceptionally large entries are capped at 16,384 characters with an explicit
+  truncation marker (at most about 4.7 MiB for 100 UTF-8 entries).
+
+Both modes stay enabled until turned off and survive restarts; existing enabled installations
+continue with full logging. Canceling the choice leaves logging off. Turn logging off and on
+again to change mode.
+
+Logging records app
 activity — lifecycle events, navigation, permission decisions, blocked ad requests, playback
 state, media notification commands, media-player swipes (direction, action, and whether the
 control was clicked or unavailable), and uncaught exceptions. Every entry names the calling
 code, and warnings, errors, and crashes carry a full stack trace. Entries go to logcat and to
-a private log file (`files/logs/ssmusic.log`) that is rotated once it reaches 512 KB. Use
+a private log file (`files/logs/ssmusic.log`) managed by the selected mode. Use
 **View log** to open a scrollable, selectable text snapshot in the app, with **Refresh** to
 load newer entries. This also works with logging disabled for entries already saved. Use
 **Share log** to send the file to another app and **Clear log** to delete it. Because the log

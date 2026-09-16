@@ -1201,9 +1201,31 @@ public class MainActivity extends AppCompatActivity {
         });
 
         Switch loggingSwitch = content.findViewById(R.id.logging_switch);
+        TextView loggingSummary = content.findViewById(R.id.logging_summary);
         loggingSwitch.setChecked(Logger.isEnabled());
-        loggingSwitch.setOnCheckedChangeListener(
-                (button, checked) -> Logger.setEnabled(MainActivity.this, checked));
+        updateLoggingSummary(loggingSummary);
+        loggingSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (checked == Logger.isEnabled()) {
+                return;
+            }
+            if (!checked) {
+                Logger.setEnabled(MainActivity.this, false);
+                updateLoggingSummary(loggingSummary);
+                return;
+            }
+            // Keep the switch off until a mode is chosen, including Back/outside cancellation.
+            loggingSwitch.setChecked(false);
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.logging_mode_title)
+                    .setItems(R.array.logging_modes, (dialog, which) -> {
+                        Logger.enable(MainActivity.this,
+                                which == 1 ? Logger.Mode.REACTIVE : Logger.Mode.FULL);
+                        loggingSwitch.setChecked(Logger.isEnabled());
+                        updateLoggingSummary(loggingSummary);
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
         content.findViewById(R.id.share_log_button).setOnClickListener(v -> shareLog());
         content.findViewById(R.id.view_log_button).setOnClickListener(v -> LogViewer.show(this));
         content.findViewById(R.id.clear_log_button).setOnClickListener(v -> clearLog());
@@ -1249,6 +1271,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         dialog.show();
+    }
+
+    private void updateLoggingSummary(TextView summary) {
+        summary.setText(!Logger.isEnabled() ? R.string.enable_logging_summary
+                : Logger.getMode() == Logger.Mode.REACTIVE
+                        ? R.string.logging_reactive : R.string.logging_full);
     }
 
     private void openSupportedLinksSettings() {
