@@ -19,9 +19,21 @@ collapsed whenever settings is opened. Tap **Advanced** to expand or collapse th
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
 to the WebView from a synthetic same-origin path instead of the network.
 
-In the expanded media view, swipe down on the video area to minimize the player, up to
+In the expanded media view, swipe down on the video area to compact the player, up to
 open **Up next**, left for the previous song, or right for the next song. These gestures also work while the song
 thumbnail is shown. Taps and player controls retain their normal behavior.
+
+The experimental **Compact player** shrinks the existing player page above the transport bar and exposes the
+browse surface; **Expand player** restores its presentation. Dedicated native minimize/toggle
+buttons use this app presentation while expanded. ssMusic does not replace/reload media, change
+YouTube Music's internal player state, or resume an intentional pause. Track changes can continue
+in compact mode while the same player remains expanded internally. If navigation changes that state,
+the player is replaced, or fullscreen begins, compact presentation is removed rather than forcing
+the site's state back. Unsupported page structures leave swipe-down unavailable, without falling
+back to native minimize. This depends on YouTube Music's DOM and is not a verified workaround for
+site playback restrictions. Live YouTube Music was unavailable during development; checks used
+a synthetic browser page, not the live site. Browsing/navigation may still trigger site playback
+restrictions. Live playback, browsing, and restricted-content behavior require device verification.
 
 ## Supported links
 
