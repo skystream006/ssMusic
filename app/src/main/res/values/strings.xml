@@ -57,6 +57,8 @@
     <string name="show_thumbnail_button">Show thumbnail</string>
     <string name="show_video_button">Play video</string>
     <string name="video_thumbnail_alt">Song thumbnail</string>
+    <string name="compact_player_button">Compact player</string>
+    <string name="expand_player_button">Expand player</string>
     <string name="supported_links">Supported links</string>
     <string name="open_supported_links">Open supported links</string>
     <string name="supported_links_summary">Choose ssMusic for music.youtube.com links in Android settings. Enable “Open supported links” and select music.youtube.com if prompted. On older devices, look under “Open by default” in App info. Android requires your approval; ssMusic cannot change this automatically.</string>
