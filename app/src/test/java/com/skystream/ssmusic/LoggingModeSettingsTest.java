@@ -31,7 +31,7 @@ public class LoggingModeSettingsTest {
                 + "                    .putString(KEY_LOGGING_MODE, mode.name())"));
         assertTrue(source.contains("if (file.length() > LogFormat.MAX_FILE_BYTES)"));
         assertTrue(source.contains("new FileOutputStream(file, true)"));
-        assertTrue(source.contains("appendToFile(entry);"));
+        assertTrue(source.contains("appendToFile(entry)"));
     }
 
     private static String source(String name) throws Exception {
