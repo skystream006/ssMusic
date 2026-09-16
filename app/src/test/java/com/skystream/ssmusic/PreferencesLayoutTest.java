@@ -141,6 +141,15 @@ public class PreferencesLayoutTest {
         }
     }
 
+    @Test
+    public void loggingOffersBothModesAndDisplaysCurrentModeSummary() throws Exception {
+        Document strings = readResource("values/strings.xml");
+        assertOptions(strings, "logging_modes", "@string/logging_full", "@string/logging_reactive");
+        Document layout = readResource("layout/dialog_preferences.xml");
+        assertEquals("@string/enable_logging_summary",
+                findById(layout, "logging_summary").getAttributeNS(ANDROID, "text"));
+    }
+
     private static Document readResource(String path) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);

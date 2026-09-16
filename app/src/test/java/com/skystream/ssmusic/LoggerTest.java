@@ -12,12 +12,24 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Deque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class LoggerTest {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void absentAndUnknownModePreferencesKeepFullLogging() {
+        assertEquals(Logger.Mode.FULL, Logger.Mode.fromPreference(null));
+        assertEquals(Logger.Mode.FULL, Logger.Mode.fromPreference(""));
+        assertEquals(Logger.Mode.FULL, Logger.Mode.fromPreference("future-mode"));
+        assertEquals(Logger.Mode.FULL, Logger.Mode.fromPreference(Logger.Mode.FULL.name()));
+        assertEquals(Logger.Mode.REACTIVE, Logger.Mode.fromPreference(Logger.Mode.REACTIVE.name()));
+    }
 
     @Test
     public void currentLogHandlesMissingAndEmptyFiles() throws IOException {
@@ -64,6 +76,43 @@ public class LoggerTest {
         }
         assertTrue(secondFinished.await(5, TimeUnit.SECONDS));
         assertFalse(Logger.isEnabled());
+    }
+
+    @Test
+    public void reactiveBacklogIsBoundedAndSnapshotsSealBatches() throws Exception {
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        Logger.readCurrentLog(null, (text, error) -> {
+            firstStarted.countDown();
+            try {
+                releaseFirst.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        try {
+            assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+            Method enqueue = Logger.class.getDeclaredMethod("queueReactiveEntry", String.class);
+            enqueue.setAccessible(true);
+            Field pending = Logger.class.getDeclaredField("pendingReactiveEntries");
+            pending.setAccessible(true);
+            for (int i = 0; i < 135; i++) {
+                enqueue.invoke(null, "message " + i + "\n");
+            }
+            Deque<?> batch = (Deque<?>) pending.get(null);
+            assertEquals(100, batch.size());
+            assertEquals("message 35\n", batch.peekFirst());
+            assertEquals("message 134\n", batch.peekLast());
+            Logger.readCurrentLog(null, (text, error) -> { });
+            enqueue.invoke(null, "after snapshot\n");
+            assertEquals(100, batch.size());
+            assertEquals("after snapshot\n", ((Deque<?>) pending.get(null)).peekFirst());
+            Logger.readCurrentLog(null, (text, error) -> finished.countDown());
+        } finally {
+            releaseFirst.countDown();
+        }
+        assertTrue(finished.await(5, TimeUnit.SECONDS));
     }
 
     @Test

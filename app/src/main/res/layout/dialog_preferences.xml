@@ -166,9 +166,9 @@
             tools:ignore="UseSwitchCompatOrMaterialXml" />
 
         <TextView
+            android:id="@+id/logging_summary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:importantForAccessibility="no"
             android:text="@string/enable_logging_summary"
             android:textColor="?android:attr/textColorSecondary"
             android:textSize="12sp" />

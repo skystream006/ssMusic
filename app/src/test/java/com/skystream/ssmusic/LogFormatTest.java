@@ -89,4 +89,41 @@ public class LogFormatTest {
         assertTrue(LogFormat.timestamp(0L)
                 .matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}"));
     }
+
+    @Test
+    public void reactivePreservesNormalMessagesAndCompleteStackTraces() {
+        Throwable error = new IllegalStateException("曲名 🎵\nsecond line");
+        StackTraceElement[] caller = new Throwable().getStackTrace();
+        for (String level : new String[]{"I", "D", "W", "E"}) {
+            assertEquals(LogFormat.entry(0, level, "Test", "message", error, caller),
+                    LogFormat.reactiveEntry(0, level, "Test", "message", error, caller));
+            assertEquals(LogFormat.entry(0, level, "Test", "message", null, caller),
+                    LogFormat.reactiveEntry(0, level, "Test", "message", null, caller));
+        }
+    }
+
+    @Test
+    public void reactiveBoundsHugeThrowableWhileFullModePreservesIt() {
+        char[] text = new char[100_000];
+        java.util.Arrays.fill(text, 'x');
+        Throwable error = new IllegalStateException(new String(text));
+        String reactive = LogFormat.reactiveEntry(0, "E", "Test", "failed", error, null);
+        assertTrue(reactive.length() <= ReactiveLogFile.MAX_ENTRY_CHARS);
+        assertTrue(reactive.endsWith(ReactiveLogFile.TRUNCATED));
+        assertTrue(LogFormat.entry(0, "E", "Test", "failed", error, null).length() > 100_000);
+    }
+
+    @Test
+    public void unicodeMessageTruncationDoesNotSplitSurrogatePairs() {
+        char[] text = new char[3999];
+        java.util.Arrays.fill(text, 'x');
+        assertEquals(new String(text) + "…", LogFormat.sanitize(new String(text) + "🎵tail"));
+    }
+
+    @Test
+    public void tagsCannotCreateFalseEntryBoundaries() {
+        String entry = LogFormat.entry(0, "I", "Test\nsecond", "message", null, null);
+        assertTrue(entry.contains("I/Test second: message"));
+        assertEquals(1, entry.split("\n").length);
+    }
 }
