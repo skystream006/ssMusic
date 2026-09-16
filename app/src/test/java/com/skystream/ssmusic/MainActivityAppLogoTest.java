@@ -172,6 +172,29 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void videoDisplaySwipesRequireExpandedPresentationAtStartAndEnd() {
+        for (boolean showThumbnail : new boolean[]{true, false}) {
+            String script = MainActivity.videoDisplayScript(
+                    showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
+            String guard = script.substring(script.indexOf("function mediaPage(node)"),
+                    script.indexOf("function swipeControl(action)"));
+            assertTrue(guard.contains("if(!page||!node.isConnected"));
+            assertTrue(guard.contains("node.closest('[data-ssmusic-compact-role=\"page\"],"
+                    + "[hidden],[inert],[aria-hidden=\"true\"]')"));
+            assertTrue(guard.contains("var layout=page.closest('ytmusic-app-layout')"));
+            assertTrue(guard.contains("expandedState(pageState||layoutState)"));
+            assertTrue(guard.contains("(!pageState||expandedState(pageState))"));
+            assertTrue(guard.contains("(!layoutState||expandedState(layoutState))"));
+            assertTrue(guard.contains("getComputedStyle(page).display!=='none'"));
+            assertTrue(guard.contains("getComputedStyle(page).visibility!=='hidden'"));
+            assertTrue(script.contains("function expandedState(state){"
+                    + "return state==='PLAYER_PAGE_OPEN'||state==='FULLSCREEN';}"));
+            assertTrue(script.indexOf("var page=mediaPage(node)") < script.indexOf("return 'accepted'"));
+            assertTrue(script.indexOf("||!mediaPage(gesture.node)") < script.indexOf("if(action==='down')"));
+        }
+    }
+
+    @Test
     public void videoDisplaySwipesUseMediaSurfaceInsteadOfHiddenVideoBounds() {
         for (boolean showThumbnail : new boolean[]{true, false}) {
             String script = MainActivity.videoDisplayScript(
