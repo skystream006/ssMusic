@@ -188,6 +188,8 @@ public class MainActivity extends AppCompatActivity {
                     + "document.addEventListener('playing',report,true);"
                     + "document.addEventListener('timeupdate',report,true);"
                     + "document.addEventListener('ended',function(event){"
+                    + "var player=document.querySelector('#movie_player');"
+                    + "if(!player||player.classList.contains('ad-showing')){return;}"
                     + "if(event.target===lastMedia&&lastId&&window.ssmusicPlayback){"
                     + "window.ssmusicPlayback.songEnded(lastId);lastId='';"
                     + "}},true);"

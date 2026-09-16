@@ -47,6 +47,7 @@ public class MainActivitySongRefreshTest {
         assertTrue(script.contains("document.addEventListener('playing',report,true)"));
         assertTrue(script.contains("document.addEventListener('timeupdate',report,true)"));
         assertTrue(script.contains("document.addEventListener('ended',function(event)"));
+        assertTrue(script.contains("if(!player||player.classList.contains('ad-showing')){return;}"));
         assertTrue(script.contains("event.target===lastMedia&&lastId"));
         assertTrue(script.contains("window.ssmusicPlayback.songEnded(lastId);lastId=''"));
         assertTrue(script.endsWith("report();})()"));
