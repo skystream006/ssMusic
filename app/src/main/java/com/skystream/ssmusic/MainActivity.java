@@ -185,6 +185,7 @@ public class MainActivity extends AppCompatActivity {
                     + "lastMedia=media;"
                     + "if(id!==lastId){lastId=id;bridge.songStarted(id);}"
                     + "}"
+                    + "window.__ssmusicReportSongStart=report;"
                     + "document.addEventListener('playing',report,true);"
                     + "document.addEventListener('timeupdate',report,true);"
                     + "document.addEventListener('ended',function(event){"
@@ -822,6 +823,18 @@ public class MainActivity extends AppCompatActivity {
     private String currentTrackArtist;
     private String currentTrackThumbnailUrl;
     private final SongRefreshCounter songRefreshCounter = new SongRefreshCounter();
+    private final Handler songRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable backgroundSongCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (playbackBridgeEnabled && SiteScope.isPlaybackUrl(webView.getUrl())) {
+                // Native scheduling avoids depending on hidden-page timers or media events.
+                webView.evaluateJavascript(
+                        "if(window.__ssmusicReportSongStart){window.__ssmusicReportSongStart();}", null);
+            }
+            songRefreshHandler.postDelayed(this, 5000L);
+        }
+    };
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -893,6 +906,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        songRefreshHandler.removeCallbacks(backgroundSongCheck);
         appUpdater.onResume();
         webView.post(() -> {
             if (SiteScope.isPlaybackUrl(webView.getUrl())) {
@@ -917,6 +931,10 @@ public class MainActivity extends AppCompatActivity {
         // Establish the foreground service while the activity is still visible, not after onStop.
         if (!isFinishing() && isPlaybackLikelyActive()) {
             startPlaybackKeepAliveService(playbackActive ? Boolean.TRUE : null);
+        }
+        songRefreshHandler.removeCallbacks(backgroundSongCheck);
+        if (!isFinishing()) {
+            songRefreshHandler.post(backgroundSongCheck);
         }
         super.onPause();
         Logger.debug(TAG, "App paused and no longer interactive");
@@ -945,6 +963,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         Logger.event(TAG, "onDestroy, finishing: " + isFinishing());
+        songRefreshHandler.removeCallbacks(backgroundSongCheck);
         logoInjectionHandler.removeCallbacksAndMessages(null);
         statsMonitor.destroy();
         appUpdater.destroy();

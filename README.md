@@ -134,7 +134,9 @@ apps can still interrupt playback. Force-stopping the app or device-specific bat
 can stop playback and remove its notification.
 
 Instead of automatically confirming **Are you still listening?**, ssMusic refreshes the page
-when the sixth song starts without user interaction. Refreshing or interacting with the page,
+when the sixth song starts without user interaction, including while the app is in the background.
+A native check every five seconds backs up song-start events while the app is not interactive.
+Refreshing or interacting with the page,
 app, or notification playback controls resets the count; pausing, buffering, and resuming the
 same song do not count as new songs. A refresh uses the site's normal page-loading behavior
 and may briefly interrupt playback.
