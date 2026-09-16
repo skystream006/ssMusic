@@ -122,7 +122,8 @@ public class CompactPlayerScriptTest {
         assertTrue(script.contains("if (active && !same(candidate)) {\n            expand();"));
         assertFalse(script.contains("!same(candidate) || !present(candidate)"));
         assertTrue(script.contains("if (active && !present(candidate)) {\n"
-                + "            button.hidden = true;\n            return;"));
+                + "            if (!button.hidden) {\n"
+                + "                button.hidden = true;\n            }\n            return;"));
         assertTrue(script.contains("if (!geometry(candidate))"));
         assertTrue(script.contains("!Number.isFinite(scale)"));
         assertTrue(script.contains("barRect.bottom > window.innerHeight + 1"));

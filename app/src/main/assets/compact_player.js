@@ -197,7 +197,9 @@
         // Hidden/resizing WebViews can briefly have no usable bounds. Keep the last
         // compact CSS until layout recovers, rather than exposing the full player.
         if (active && !present(candidate)) {
-            button.hidden = true;
+            if (!button.hidden) {
+                button.hidden = true;
+            }
             return;
         }
         if (!controlsStyle.isConnected) {
