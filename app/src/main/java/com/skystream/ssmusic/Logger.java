@@ -46,6 +46,8 @@ public final class Logger {
     private static final Object FILE_LOCK = new Object();
     private static final Object QUEUE_LOCK = new Object();
     private static Deque<String> pendingReactiveEntries;
+    // Set while holding both locks; readers hold either lock.
+    private static boolean crashLoggingStarted;
 
     private static volatile Context appContext;
     private static volatile boolean enabled;
@@ -199,6 +201,9 @@ public final class Logger {
         File directory = new File(target.getFilesDir(), LOG_DIRECTORY);
         Runnable delete = () -> {
             synchronized (FILE_LOCK) {
+                if (crashLoggingStarted) {
+                    return;
+                }
                 deleteQuietly(new File(directory, LOG_FILE_NAME));
                 deleteQuietly(new File(directory, LOG_BACKUP_FILE_NAME));
                 deleteQuietly(new File(directory, LOG_FILE_NAME + ReactiveLogFile.PENDING_SUFFIX));
@@ -234,8 +239,15 @@ public final class Logger {
     }
 
     private static void queueReactiveEntry(String entry) {
+        queueReactiveEntry(logFile(null), entry);
+    }
+
+    static void queueReactiveEntry(File file, String entry) {
         ExecutorService executor = ensureWriter();
         synchronized (QUEUE_LOCK) {
+            if (crashLoggingStarted) {
+                return;
+            }
             if (pendingReactiveEntries == null) {
                 Deque<String> batch = new ArrayDeque<>(ReactiveLogFile.MAX_ENTRIES);
                 pendingReactiveEntries = batch;
@@ -246,7 +258,7 @@ public final class Logger {
                         }
                     }
                     for (String pending : batch) {
-                        appendToFile(pending);
+                        appendToFile(file, pending, false);
                     }
                 });
             }
@@ -309,16 +321,32 @@ public final class Logger {
     }
 
     private static void appendToFile(String entry) {
-        Context context = appContext;
-        if (context == null) {
+        appendToFile(logFile(null), entry, false);
+    }
+
+    static void appendCrashToFile(File file, String entry) {
+        synchronized (QUEUE_LOCK) {
+            synchronized (FILE_LOCK) {
+                // Freeze even detached batches. Never await the executor: it may be crashing.
+                crashLoggingStarted = true;
+                pendingReactiveEntries = null;
+                appendToFile(file, entry, true);
+            }
+        }
+    }
+
+    private static void appendToFile(File file, String entry, boolean crash) {
+        if (file == null) {
             return;
         }
         synchronized (FILE_LOCK) {
-            File directory = new File(context.getFilesDir(), LOG_DIRECTORY);
+            if (crashLoggingStarted && !crash) {
+                return;
+            }
+            File directory = file.getParentFile();
             if (!directory.isDirectory() && !directory.mkdirs()) {
                 return;
             }
-            File file = new File(directory, LOG_FILE_NAME);
             if (mode == Mode.REACTIVE) {
                 try {
                     ReactiveLogFile.append(file, entry);
@@ -394,7 +422,7 @@ public final class Logger {
                 if (enabled) {
                     String entry = formatEntry(System.currentTimeMillis(), "E", "Crash",
                             "Uncaught exception on thread " + thread.getName(), throwable, null);
-                    appendToFile(entry);
+                    appendCrashToFile(logFile(null), entry);
                 }
             } catch (RuntimeException e) {
                 Log.w(LOGCAT_TAG, "Unable to record crash", e);
