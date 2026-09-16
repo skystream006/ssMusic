@@ -10,6 +10,34 @@ import org.junit.Test;
 
 public class LoggingModeSettingsTest {
     @Test
+    public void advancedExpansionStartsFromLoggingStateAndStillAllowsManualToggling() throws Exception {
+        String source = source("MainActivity");
+        String advanced = source.substring(source.indexOf("TextView advancedButton ="),
+                source.indexOf("Switch kidModeSwitch"));
+        assertTrue(advanced.contains(
+                "setAdvancedExpanded(advancedButton, advancedSettings, Logger.isEnabled());"));
+        assertTrue(advanced.contains("advancedButton.setOnClickListener"));
+        assertTrue(advanced.contains(
+                "boolean expanded = advancedSettings.getVisibility() != View.VISIBLE;"));
+        assertTrue(advanced.contains(
+                "setAdvancedExpanded(advancedButton, advancedSettings, expanded);"));
+    }
+
+    @Test
+    public void advancedExpansionKeepsVisibilityLabelAndAccessibilityInSync() throws Exception {
+        String source = source("MainActivity");
+        String helper = source.substring(source.indexOf("private void setAdvancedExpanded("),
+                source.indexOf("private void updateLoggingSummary("));
+        assertTrue(helper.contains(
+                "advancedSettings.setVisibility(expanded ? View.VISIBLE : View.GONE)"));
+        assertTrue(helper.contains("advancedButton.setText(expanded\n"
+                + "                ? R.string.advanced_expanded : R.string.advanced_collapsed)"));
+        assertTrue(helper.contains("advancedButton.setContentDescription(getString(expanded\n"
+                + "                ? R.string.advanced_collapse_accessibility\n"
+                + "                : R.string.advanced_expand_accessibility))"));
+    }
+
+    @Test
     public void switchStaysOffUntilSelectionAndCancelDoesNotEnableLogging() throws Exception {
         String source = source("MainActivity");
         String listener = source.substring(source.indexOf("Switch loggingSwitch"),

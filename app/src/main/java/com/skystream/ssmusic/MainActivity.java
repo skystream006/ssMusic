@@ -1171,15 +1171,10 @@ public class MainActivity extends AppCompatActivity {
 
         TextView advancedButton = content.findViewById(R.id.advanced_button);
         View advancedSettings = content.findViewById(R.id.advanced_settings);
-        advancedButton.setContentDescription(getString(R.string.advanced_expand_accessibility));
+        setAdvancedExpanded(advancedButton, advancedSettings, Logger.isEnabled());
         advancedButton.setOnClickListener(v -> {
             boolean expanded = advancedSettings.getVisibility() != View.VISIBLE;
-            advancedSettings.setVisibility(expanded ? View.VISIBLE : View.GONE);
-            advancedButton.setText(expanded
-                    ? R.string.advanced_expanded : R.string.advanced_collapsed);
-            advancedButton.setContentDescription(getString(expanded
-                    ? R.string.advanced_collapse_accessibility
-                    : R.string.advanced_expand_accessibility));
+            setAdvancedExpanded(advancedButton, advancedSettings, expanded);
         });
 
         Switch kidModeSwitch = content.findViewById(R.id.kid_mode_switch);
@@ -1271,6 +1266,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         dialog.show();
+    }
+
+    private void setAdvancedExpanded(TextView advancedButton, View advancedSettings, boolean expanded) {
+        advancedSettings.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        advancedButton.setText(expanded
+                ? R.string.advanced_expanded : R.string.advanced_collapsed);
+        advancedButton.setContentDescription(getString(expanded
+                ? R.string.advanced_collapse_accessibility
+                : R.string.advanced_expand_accessibility));
     }
 
     private void updateLoggingSummary(TextView summary) {

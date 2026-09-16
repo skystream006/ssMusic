@@ -13,7 +13,8 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - password-protected **Kid mode** for playlist-only listening
 
 Kid mode, supported links, logging, and Stats for nerds are grouped under **Advanced**, which starts
-collapsed whenever settings is opened. Tap **Advanced** to expand or collapse those controls.
+expanded whenever settings is opened with logging enabled, and collapsed otherwise.
+Tap **Advanced** to expand or collapse those controls.
 **View log**, **Share log**, and **Clear log** appear together in one row.
 
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
