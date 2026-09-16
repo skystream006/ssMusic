@@ -911,6 +911,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         appUpdater.onResume();
+        webView.post(() -> {
+            if (SiteScope.isPlaybackUrl(webView.getUrl())) {
+                webView.evaluateJavascript("(function(){"
+                        + "if(window.__ssmusicCompactPlayer){window.__ssmusicCompactPlayer.refresh();}"
+                        + "if(window.__ssmusicApplyVideoDisplay){window.__ssmusicApplyVideoDisplay();}"
+                        + "})()", null);
+            }
+        });
         Logger.debug(TAG, "App resumed and interactive");
     }
 

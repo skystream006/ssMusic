@@ -50,20 +50,12 @@
             return null;
         }
         if (page.closest('[hidden],[inert],[aria-hidden="true"]')
-                || getComputedStyle(page).display === 'none'
-                || getComputedStyle(page).visibility === 'hidden') {
-            return null;
-        }
-        var rect = page.getBoundingClientRect();
-        var barRect = bar.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0 || barRect.width <= 0 || barRect.height <= 0
-                || barRect.top <= 0 || barRect.bottom > window.innerHeight + 1
-                || getComputedStyle(bar).visibility === 'hidden'
                 || browse.closest('[inert],[aria-hidden="true"]')) {
             return null;
         }
         return {layout: layout, page: page, bar: bar, browse: browse, media: media,
-            player: player, pageState: pageState, layoutState: layoutState, rect: rect};
+            player: player, pageState: pageState, layoutState: layoutState,
+            rect: page.getBoundingClientRect()};
     }
 
     function same(candidate) {
@@ -105,18 +97,33 @@
     }
 
     function geometry(candidate) {
+        if (!candidate) {
+            return null;
+        }
+        var rect = candidate.rect;
         var barRect = candidate.bar.getBoundingClientRect();
+        if (window.innerWidth <= 24 || window.innerHeight <= 0
+                || rect.width <= 0 || rect.height <= 0 || barRect.width <= 0 || barRect.height <= 0
+                || barRect.top <= 0 || barRect.bottom > window.innerHeight + 1
+                || getComputedStyle(candidate.page).display === 'none'
+                || getComputedStyle(candidate.page).visibility === 'hidden'
+                || getComputedStyle(candidate.bar).visibility === 'hidden') {
+            return null;
+        }
         var bottom = window.innerHeight - barRect.top + 12;
         var height = active ? active.rect.height : candidate.rect.height;
         var width = active ? active.rect.width : candidate.rect.width;
         var scale = Math.min(1, Math.min(300, window.innerWidth - 24) / width,
             Math.min(window.innerHeight * 0.32, barRect.top - 100) / height);
+        if (!Number.isFinite(scale) || scale <= 0 || height * scale < 48) {
+            return null;
+        }
         return {bottom: bottom, scale: scale, height: height * scale};
     }
 
     function present(candidate) {
         var size = geometry(candidate);
-        if (size.scale <= 0 || size.height < 48) {
+        if (!size) {
             return false;
         }
         // Scale the existing page, not a clone or a reconstructed media element.
@@ -158,7 +165,7 @@
             expand();
             return false;
         }
-        if (!candidate || geometry(candidate).height < 48) {
+        if (!geometry(candidate)) {
             return false;
         }
         active = candidate;
@@ -183,9 +190,17 @@
             return;
         }
         var candidate = current();
-        if (active && (!same(candidate) || !present(candidate))) {
+        if (active && !same(candidate)) {
             expand();
             candidate = current();
+        }
+        // Hidden/resizing WebViews can briefly have no usable bounds. Keep the last
+        // compact CSS until layout recovers, rather than exposing the full player.
+        if (active && !present(candidate)) {
+            if (!button.hidden) {
+                button.hidden = true;
+            }
+            return;
         }
         if (!controlsStyle.isConnected) {
             document.head.appendChild(controlsStyle);
@@ -193,7 +208,8 @@
         if (!button.isConnected) {
             document.body.appendChild(button);
         }
-        var available = !!candidate && geometry(candidate).height >= 48;
+        var size = geometry(candidate);
+        var available = !!size;
         if (button.hidden === available) {
             button.hidden = !available;
         }
@@ -210,7 +226,6 @@
         if (button.getAttribute('aria-expanded') !== expanded) {
             button.setAttribute('aria-expanded', expanded);
         }
-        var size = geometry(candidate);
         var bottom = (size.bottom + (active ? size.height + 8 : 0)) + 'px';
         if (button.style.bottom !== bottom) {
             button.style.bottom = bottom;
@@ -281,12 +296,15 @@
     ['resize', 'popstate', 'hashchange'].forEach(function (name) {
         window.addEventListener(name, schedule, true);
     });
-    window.addEventListener('pagehide', function () {
+    window.addEventListener('pagehide', function (event) {
         suspended = true;
         observer.disconnect();
         clearTimeout(timer);
         timer = null;
-        expand();
+        // A cached document will return with the same player and owned styling.
+        if (!event.persisted) {
+            expand();
+        }
         button.remove();
         controlsStyle.remove();
     }, true);
@@ -295,7 +313,7 @@
         observe();
         schedule();
     }, true);
-    window.__ssmusicCompactPlayer = {compact: compact, expand: expand};
+    window.__ssmusicCompactPlayer = {compact: compact, expand: expand, refresh: schedule};
     observe();
     schedule();
 }());
