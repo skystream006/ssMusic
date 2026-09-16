@@ -166,62 +166,39 @@ public class MainActivity extends AppCompatActivity {
                     + "if(!apply()){setTimeout(apply,50);}"
                     + "})()";
 
-    static final String STILL_LISTENING_SCRIPT =
+    static final String SONG_REFRESH_SCRIPT =
             "(function(){"
                     + "if(location.origin!=='https://music.youtube.com'||window!==window.top){return;}"
-                    + "if(window.__ssmusicStillListeningObserver||!document.documentElement){return;}"
-                    + "var PROMPT='ytmusic-you-there-renderer';"
-                    + "var confirmed=new Set();"
-                    + "var previousStyle=document.createElement('div').style;"
-                    + "function visible(node){"
-                    + "if(!document.documentElement.contains(node)"
-                    + "||node.closest('[hidden],[aria-hidden=\"true\"],dialog:not([open])')){return false;}"
-                    + "var style=getComputedStyle(node);"
-                    + "return style.visibility!=='hidden'&&style.visibility!=='collapse'"
-                    + "&&node.getClientRects().length>0;"
+                    + "if(window.__ssmusicSongRefreshInstalled){return;}"
+                    + "window.__ssmusicSongRefreshInstalled=true;"
+                    + "var lastId='';var lastMedia=null;"
+                    + "function report(event){"
+                    + "var bridge=window.ssmusicPlayback;"
+                    + "var player=document.querySelector('#movie_player');"
+                    + "var media=player&&player.querySelector('video,audio');"
+                    + "if(!bridge||!media||(event&&event.target!==media)){return;}"
+                    + "if(media.paused||media.ended||media.seeking||media.readyState<3"
+                    + "||player.classList.contains('ad-showing')){return;}"
+                    + "var data;try{data=player.getVideoData();}catch(e){return;}"
+                    + "var id=data&&data.video_id;"
+                    + "if(typeof id!=='string'||!/^[A-Za-z0-9_-]{11}$/.test(id)){return;}"
+                    + "lastMedia=media;"
+                    + "if(id!==lastId){lastId=id;bridge.songStarted(id);}"
                     + "}"
-                    + "function confirm(){"
-                    + "confirmed.forEach(function(prompt){if(!visible(prompt)){confirmed.delete(prompt);}});"
-                    + "var prompts=document.querySelectorAll(PROMPT);"
-                    + "for(var i=0;i<prompts.length;i++){"
-                    + "var prompt=prompts[i];"
-                    + "if(confirmed.has(prompt)||!visible(prompt)){continue;}"
-                    + "var button=prompt.querySelector('[dialog-confirm] button,button[dialog-confirm],"
-                    + "#confirm-button button,button#confirm-button')"
-                    + "||prompt.querySelector('[dialog-confirm],#confirm-button');"
-                    + "if(!button||!visible(button)"
-                    + "||button.closest('[disabled],[aria-disabled=\"true\"],[inert]')){continue;}"
-                    + "confirmed.add(prompt);"
-                    + "button.click();"
-                    + "}"
-                    + "}"
-                    + "window.__ssmusicStillListeningObserver=new MutationObserver(function(changes){"
-                    + "changes.forEach(function(change){"
-                    + "if(change.type!=='attributes'){return;}"
-                    + "var wasHidden=(change.attributeName==='hidden'&&change.oldValue!==null)"
-                    + "||(change.attributeName==='aria-hidden'&&change.oldValue==='true')"
-                    + "||(change.attributeName==='open'&&change.oldValue===null);"
-                    + "if(change.attributeName==='style'){"
-                    + "previousStyle.cssText=change.oldValue||'';"
-                    + "wasHidden=previousStyle.display==='none'||previousStyle.visibility==='hidden'"
-                    + "||previousStyle.visibility==='collapse';"
-                    + "}"
-                    + "if(wasHidden){"
-                    + "confirmed.forEach(function(prompt){"
-                    + "if(change.target.contains(prompt)){confirmed.delete(prompt);}"
+                    + "document.addEventListener('playing',report,true);"
+                    + "document.addEventListener('timeupdate',report,true);"
+                    + "document.addEventListener('ended',function(event){"
+                    + "var player=document.querySelector('#movie_player');"
+                    + "if(!player||player.classList.contains('ad-showing')){return;}"
+                    + "if(event.target===lastMedia&&lastId&&window.ssmusicPlayback){"
+                    + "window.ssmusicPlayback.songEnded(lastId);lastId='';"
+                    + "}},true);"
+                    + "['pointerdown','touchstart','keydown','wheel','click'].forEach(function(type){"
+                    + "document.addEventListener(type,function(event){"
+                    + "if(event.isTrusted&&window.ssmusicPlayback){window.ssmusicPlayback.userInteracted();}"
+                    + "},{capture:true,passive:true});"
                     + "});"
-                    + "}"
-                    + "});"
-                    + "confirm();"
-                    + "});"
-                    + "window.__ssmusicStillListeningObserver.observe(document.documentElement,"
-                    + "{childList:true,subtree:true,attributes:true,attributeOldValue:true,"
-                    + "attributeFilter:['hidden','aria-hidden','open','style','class','disabled','aria-disabled',"
-                    + "'inert','dialog-confirm','id']});"
-                    + "document.addEventListener('visibilitychange',confirm);"
-                    + "document.addEventListener('pause',confirm,true);"
-                    + "document.addEventListener('yt-navigate-finish',confirm);"
-                    + "confirm();"
+                    + "report();"
                     + "})()";
 
     static final String OPEN_APP_HIDING_SCRIPT =
@@ -844,6 +821,7 @@ public class MainActivity extends AppCompatActivity {
     private String currentTrackTitle;
     private String currentTrackArtist;
     private String currentTrackThumbnailUrl;
+    private final SongRefreshCounter songRefreshCounter = new SongRefreshCounter();
     private final BroadcastReceiver mediaCommandReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
@@ -925,6 +903,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         Logger.debug(TAG, "App resumed and interactive");
+    }
+
+    @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        songRefreshCounter.reset();
     }
 
     @Override
@@ -1640,7 +1624,7 @@ public class MainActivity extends AppCompatActivity {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
-        view.evaluateJavascript(STILL_LISTENING_SCRIPT, null);
+        view.evaluateJavascript(SONG_REFRESH_SCRIPT, null);
         view.evaluateJavascript(OPEN_APP_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);
         view.evaluateJavascript(APP_LOGO_SCRIPT, null);
@@ -1916,6 +1900,7 @@ public class MainActivity extends AppCompatActivity {
             }
             return;
         }
+        songRefreshCounter.reset();
         if (command == MEDIA_COMMAND_STOP) {
             keepAliveServiceRunning = false;
         }
@@ -1999,6 +1984,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private final class PlaybackBridge {
+        @JavascriptInterface
+        public void songStarted(String videoId) {
+            runOnUiThread(() -> {
+                if (playbackBridgeEnabled && SiteScope.isPlaybackUrl(webView.getUrl())
+                        && songRefreshCounter.songStarted(videoId)) {
+                    Logger.event(TAG, "Refreshing page at the sixth song without user interaction");
+                    webView.reload();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void songEnded(String videoId) {
+            runOnUiThread(() -> songRefreshCounter.songEnded(videoId));
+        }
+
+        @JavascriptInterface
+        public void userInteracted() {
+            runOnUiThread(() -> songRefreshCounter.reset());
+        }
+
         @JavascriptInterface
         public void setPlaying(boolean playing) {
             Logger.debug(TAG, "Bridge playing state: " + playing);
@@ -2135,6 +2141,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
+            songRefreshCounter.reset();
             webView.cancelMediaSwipe("navigation");
             Logger.event(TAG, "Page started: " + url);
             logoInjectionHandler.removeCallbacksAndMessages(null);

@@ -133,6 +133,12 @@ resume without reopening the app. Audio focus remains managed by WebView: calls 
 apps can still interrupt playback. Force-stopping the app or device-specific battery restrictions
 can stop playback and remove its notification.
 
+Instead of automatically confirming **Are you still listening?**, ssMusic refreshes the page
+when the sixth song starts without user interaction. Refreshing or interacting with the page,
+app, or notification playback controls resets the count; pausing, buffering, and resuming the
+same song do not count as new songs. A refresh uses the site's normal page-loading behavior
+and may briefly interrupt playback.
+
 ## Build
 
 ```sh
