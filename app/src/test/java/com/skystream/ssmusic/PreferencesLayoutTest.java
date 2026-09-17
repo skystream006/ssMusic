@@ -70,8 +70,8 @@ public class PreferencesLayoutTest {
         Element advanced = findById(layout, "advanced_settings");
         assertEquals("gone", advanced.getAttributeNS(ANDROID, "visibility"));
         assertSame(advanced.getParentNode(), findById(layout, "advanced_button").getParentNode());
-        for (String id : new String[]{"open_supported_links_button", "logging_switch",
-                "stats_for_nerds_switch", "log_actions", "kid_mode_switch"}) {
+        for (String id : new String[]{"open_supported_links_button",
+                "stats_for_nerds_switch", "kid_mode_switch"}) {
             assertSame(advanced, findById(layout, id).getParentNode());
         }
         for (String id : new String[]{"video_thumbnail_switch", "navigation_bar"}) {
@@ -79,6 +79,23 @@ public class PreferencesLayoutTest {
         }
         for (String id : new String[]{"theme_spinner", "site_mode_spinner"}) {
             assertSame(advanced.getParentNode(), findById(layout, id).getParentNode().getParentNode());
+        }
+    }
+
+    @Test
+    public void loggingIsIndependentlyCollapsibleWithAllLoggingControls() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        Element logging = findById(layout, "logging_settings");
+        Element button = findById(layout, "logging_button");
+        assertEquals("gone", logging.getAttributeNS(ANDROID, "visibility"));
+        assertSame(layout.getDocumentElement(), logging.getParentNode());
+        assertSame(logging.getParentNode(), button.getParentNode());
+        assertSame(logging.getParentNode(), findById(layout, "advanced_settings").getParentNode());
+        assertEquals("Button", button.getTagName());
+        assertEquals("@string/logging_collapsed", button.getAttributeNS(ANDROID, "text"));
+        assertEquals("false", button.getAttributeNS(ANDROID, "textAllCaps"));
+        for (String id : new String[]{"logging_switch", "logging_summary", "log_actions"}) {
+            assertSame(logging, findById(layout, id).getParentNode());
         }
     }
 

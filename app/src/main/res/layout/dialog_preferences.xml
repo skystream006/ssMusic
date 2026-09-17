@@ -156,6 +156,24 @@
             android:text="@string/stats_for_nerds_summary"
             android:textColor="?android:attr/textColorSecondary"
             android:textSize="12sp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/logging_button"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="start|center_vertical"
+        android:text="@string/logging_collapsed"
+        android:textAllCaps="false" />
+
+    <LinearLayout
+        android:id="@+id/logging_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
 
         <Switch
             android:id="@+id/logging_switch"

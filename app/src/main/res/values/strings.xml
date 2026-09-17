@@ -35,6 +35,10 @@
     <string name="advanced_expanded">Advanced ▴</string>
     <string name="advanced_expand_accessibility">Advanced, collapsed. Tap to expand.</string>
     <string name="advanced_collapse_accessibility">Advanced, expanded. Tap to collapse.</string>
+    <string name="logging_collapsed">Logging ▾</string>
+    <string name="logging_expanded">Logging ▴</string>
+    <string name="logging_expand_accessibility">Logging, collapsed. Tap to expand.</string>
+    <string name="logging_collapse_accessibility">Logging, expanded. Tap to collapse.</string>
     <string name="kid_mode">Kid mode</string>
     <string name="kid_mode_summary">Limit listening to playlists opened from Library, hide discovery controls, and turn off autoplay. A password is required to turn Kid mode off.</string>
     <string name="kid_mode_enable">Enable Kid mode</string>

@@ -10,12 +10,12 @@ import org.junit.Test;
 
 public class LoggingModeSettingsTest {
     @Test
-    public void advancedExpansionStartsFromLoggingStateAndStillAllowsManualToggling() throws Exception {
+    public void advancedStartsCollapsedAndStillAllowsManualToggling() throws Exception {
         String source = source("MainActivity");
         String advanced = source.substring(source.indexOf("TextView advancedButton ="),
-                source.indexOf("Switch kidModeSwitch"));
+                source.indexOf("TextView loggingButton ="));
         assertTrue(advanced.contains(
-                "setAdvancedExpanded(advancedButton, advancedSettings, Logger.isEnabled());"));
+                "setAdvancedExpanded(advancedButton, advancedSettings, false);"));
         assertTrue(advanced.contains("advancedButton.setOnClickListener"));
         assertTrue(advanced.contains(
                 "boolean expanded = advancedSettings.getVisibility() != View.VISIBLE;"));
@@ -24,10 +24,24 @@ public class LoggingModeSettingsTest {
     }
 
     @Test
+    public void loggingExpansionStartsFromLoggingStateAndStillAllowsManualToggling() throws Exception {
+        String source = source("MainActivity");
+        String logging = source.substring(source.indexOf("TextView loggingButton ="),
+                source.indexOf("Switch kidModeSwitch"));
+        assertTrue(logging.contains(
+                "setLoggingExpanded(loggingButton, loggingSettings, Logger.isEnabled());"));
+        assertTrue(logging.contains("loggingButton.setOnClickListener"));
+        assertTrue(logging.contains(
+                "boolean expanded = loggingSettings.getVisibility() != View.VISIBLE;"));
+        assertTrue(logging.contains(
+                "setLoggingExpanded(loggingButton, loggingSettings, expanded);"));
+    }
+
+    @Test
     public void advancedExpansionKeepsVisibilityLabelAndAccessibilityInSync() throws Exception {
         String source = source("MainActivity");
         String helper = source.substring(source.indexOf("private void setAdvancedExpanded("),
-                source.indexOf("private void updateLoggingSummary("));
+                source.indexOf("private void setLoggingExpanded("));
         assertTrue(helper.contains(
                 "advancedSettings.setVisibility(expanded ? View.VISIBLE : View.GONE)"));
         assertTrue(helper.contains("advancedButton.setText(expanded\n"
@@ -35,6 +49,20 @@ public class LoggingModeSettingsTest {
         assertTrue(helper.contains("advancedButton.setContentDescription(getString(expanded\n"
                 + "                ? R.string.advanced_collapse_accessibility\n"
                 + "                : R.string.advanced_expand_accessibility))"));
+    }
+
+    @Test
+    public void loggingExpansionKeepsVisibilityLabelAndAccessibilityInSync() throws Exception {
+        String source = source("MainActivity");
+        String helper = source.substring(source.indexOf("private void setLoggingExpanded("),
+                source.indexOf("private void updateLoggingSummary("));
+        assertTrue(helper.contains(
+                "loggingSettings.setVisibility(expanded ? View.VISIBLE : View.GONE)"));
+        assertTrue(helper.contains("loggingButton.setText(expanded\n"
+                + "                ? R.string.logging_expanded : R.string.logging_collapsed)"));
+        assertTrue(helper.contains("loggingButton.setContentDescription(getString(expanded\n"
+                + "                ? R.string.logging_collapse_accessibility\n"
+                + "                : R.string.logging_expand_accessibility))"));
     }
 
     @Test
@@ -47,7 +75,10 @@ public class LoggingModeSettingsTest {
                 < listener.indexOf(".setItems(R.array.logging_modes"));
         assertTrue(listener.contains("which == 1 ? Logger.Mode.REACTIVE : Logger.Mode.FULL"));
         assertTrue(listener.contains(".setNegativeButton(android.R.string.cancel, null)"));
-        assertTrue(listener.contains("Logger.setEnabled(MainActivity.this, false)"));
+        assertTrue(listener.contains("Logger.setEnabled(MainActivity.this, false);\n"
+                + "                updateGestureLogging();"));
+        assertTrue(listener.contains("which == 1 ? Logger.Mode.REACTIVE : Logger.Mode.FULL);\n"
+                + "                        updateGestureLogging();"));
     }
 
     @Test
