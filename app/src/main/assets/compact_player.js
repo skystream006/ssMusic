@@ -9,6 +9,11 @@
     var active = null;
     var timer = null;
     var suspended = false;
+    var nativeMinimizing = false;
+    var minimizeControls = 'ytmusic-player-page .player-minimize-button,ytmusic-player-page .collapse-button,'
+        + 'ytmusic-player-bar .player-minimize-button,ytmusic-player-bar .toggle-player-page-button';
+    var presentationControls = minimizeControls
+        + ',ytmusic-player-page .player-expand-button,ytmusic-player-bar .player-expand-button';
     var button = document.createElement('button');
     button.id = 'ssmusic-compact-player-toggle';
     button.type = 'button';
@@ -166,6 +171,10 @@
             return false;
         }
         if (!geometry(candidate)) {
+            if (window.ssmusicPlayback && window.ssmusicPlayback.logDiagnostic) {
+                window.ssmusicPlayback.logDiagnostic('Compact player unavailable: '
+                    + (candidate ? 'unusable player or transport bounds' : 'unsupported structure or player state'));
+            }
             return false;
         }
         active = candidate;
@@ -244,33 +253,64 @@
     }
 
     function toggle(event) {
-        cancel(event);
-        if (active) {
-            expand();
+        if (active ? expand() : compact()) {
+            cancel(event);
             update();
-        } else {
-            compact();
         }
     }
     button.addEventListener('click', toggle);
 
-    // Only dedicated player presentation buttons; transport and bar content keep native behavior.
-    document.addEventListener('click', function (event) {
-        var target = event.target instanceof Element ? event.target : null;
-        var control = target && target.closest(
-            'ytmusic-player-page .player-minimize-button,ytmusic-player-page .collapse-button,'
-            + 'ytmusic-player-page .player-expand-button,ytmusic-player-bar .player-minimize-button,'
-            + 'ytmusic-player-bar .player-expand-button,ytmusic-player-bar .toggle-player-page-button');
-        if (!control || !control.matches('button,[role="button"],yt-icon-button,tp-yt-paper-icon-button')
-                || control.disabled || control.hasAttribute('disabled')
-                || control.getAttribute('aria-disabled') === 'true') {
-            return;
-        }
+    function enabled(control) {
+        return control.matches('button,[role="button"],yt-icon-button,tp-yt-paper-icon-button')
+            && !control.disabled && !control.hasAttribute('disabled')
+            && control.getAttribute('aria-disabled') !== 'true';
+    }
+
+    function expanded(control) {
         var page = control.closest('ytmusic-player-page') || document.querySelector('ytmusic-player-page');
         var layout = document.querySelector('ytmusic-app-layout');
-        var expanded = page && (state(page) || layout && state(layout)) === 'PLAYER_PAGE_OPEN';
-        if (active || expanded) {
-            // Never fall through to native minimize when this presentation is unsupported.
+        return page && (state(page) || layout && state(layout)) === 'PLAYER_PAGE_OPEN';
+    }
+
+    function minimize() {
+        if (suspended) {
+            return 'unavailable: page suspended';
+        }
+        if (compact()) {
+            return 'compact applied';
+        }
+        var controls = document.querySelectorAll(minimizeControls);
+        for (var i = 0; i < controls.length; i++) {
+            var control = controls[i];
+            var rect = control.getBoundingClientRect();
+            if (!enabled(control) || !expanded(control) || rect.width <= 0 || rect.height <= 0
+                    || control.closest('[hidden],[inert],[aria-hidden="true"]')
+                    || getComputedStyle(control).visibility === 'hidden') {
+                continue;
+            }
+            nativeMinimizing = true;
+            try {
+                control.click();
+            } finally {
+                nativeMinimizing = false;
+            }
+            return 'native minimize control clicked';
+        }
+        return 'unavailable: no native minimize control';
+    }
+
+    // Only dedicated player presentation buttons; transport and bar content keep native behavior.
+    document.addEventListener('click', function (event) {
+        if (nativeMinimizing || suspended) {
+            return;
+        }
+        var target = event.target instanceof Element ? event.target : null;
+        var control = target && target.closest(presentationControls);
+        if (!control || !enabled(control)) {
+            return;
+        }
+        if (active || expanded(control)) {
+            // Preserve the site's button action when app presentation cannot be applied.
             toggle(event);
         }
     }, true);
@@ -313,7 +353,7 @@
         observe();
         schedule();
     }, true);
-    window.__ssmusicCompactPlayer = {compact: compact, expand: expand, refresh: schedule};
+    window.__ssmusicCompactPlayer = {compact: compact, minimize: minimize, expand: expand, refresh: schedule};
     observe();
     schedule();
 }());
