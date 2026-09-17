@@ -812,6 +812,7 @@ public class MainActivity extends AppCompatActivity {
     private ScriptHandler kidModeScriptHandler;
     private String kidModeScript;
     private String compactPlayerScript;
+    private String gestureDiagnosticsScript;
     private boolean clearHistoryAfterLoad;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
@@ -1114,6 +1115,30 @@ public class MainActivity extends AppCompatActivity {
                 + "};" + compactPlayerScript;
     }
 
+    private String gestureDiagnosticsScript() {
+        if (gestureDiagnosticsScript == null) {
+            try (InputStream input = getAssets().open("gesture_diagnostics.js");
+                    ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                }
+                gestureDiagnosticsScript = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new IllegalStateException("Gesture diagnostics script unavailable", e);
+            }
+        }
+        return "window.__ssmusicGestureLoggingEnabled=" + Logger.isEnabled() + ";"
+                + gestureDiagnosticsScript;
+    }
+
+    private void updateGestureLogging() {
+        if (webView != null && SiteScope.isPlaybackUrl(webView.getUrl())) {
+            webView.evaluateJavascript(gestureDiagnosticsScript(), null);
+        }
+    }
+
     private void updateKidModeScript() {
         kidModeHomeButton.setVisibility(isKidModeEnabled() ? View.VISIBLE : View.GONE);
         if (kidModeScriptHandler != null) {
@@ -1196,10 +1221,18 @@ public class MainActivity extends AppCompatActivity {
 
         TextView advancedButton = content.findViewById(R.id.advanced_button);
         View advancedSettings = content.findViewById(R.id.advanced_settings);
-        setAdvancedExpanded(advancedButton, advancedSettings, Logger.isEnabled());
+        setAdvancedExpanded(advancedButton, advancedSettings, false);
         advancedButton.setOnClickListener(v -> {
             boolean expanded = advancedSettings.getVisibility() != View.VISIBLE;
             setAdvancedExpanded(advancedButton, advancedSettings, expanded);
+        });
+
+        TextView loggingButton = content.findViewById(R.id.logging_button);
+        View loggingSettings = content.findViewById(R.id.logging_settings);
+        setLoggingExpanded(loggingButton, loggingSettings, Logger.isEnabled());
+        loggingButton.setOnClickListener(v -> {
+            boolean expanded = loggingSettings.getVisibility() != View.VISIBLE;
+            setLoggingExpanded(loggingButton, loggingSettings, expanded);
         });
 
         Switch kidModeSwitch = content.findViewById(R.id.kid_mode_switch);
@@ -1230,6 +1263,7 @@ public class MainActivity extends AppCompatActivity {
             }
             if (!checked) {
                 Logger.setEnabled(MainActivity.this, false);
+                updateGestureLogging();
                 updateLoggingSummary(loggingSummary);
                 return;
             }
@@ -1240,6 +1274,7 @@ public class MainActivity extends AppCompatActivity {
                     .setItems(R.array.logging_modes, (dialog, which) -> {
                         Logger.enable(MainActivity.this,
                                 which == 1 ? Logger.Mode.REACTIVE : Logger.Mode.FULL);
+                        updateGestureLogging();
                         loggingSwitch.setChecked(Logger.isEnabled());
                         updateLoggingSummary(loggingSummary);
                     })
@@ -1300,6 +1335,15 @@ public class MainActivity extends AppCompatActivity {
         advancedButton.setContentDescription(getString(expanded
                 ? R.string.advanced_collapse_accessibility
                 : R.string.advanced_expand_accessibility));
+    }
+
+    private void setLoggingExpanded(TextView loggingButton, View loggingSettings, boolean expanded) {
+        loggingSettings.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        loggingButton.setText(expanded
+                ? R.string.logging_expanded : R.string.logging_collapsed);
+        loggingButton.setContentDescription(getString(expanded
+                ? R.string.logging_collapse_accessibility
+                : R.string.logging_expand_accessibility));
     }
 
     private void updateLoggingSummary(TextView summary) {
@@ -1652,6 +1696,7 @@ public class MainActivity extends AppCompatActivity {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
+        view.evaluateJavascript(gestureDiagnosticsScript(), null);
         view.evaluateJavascript(SONG_REFRESH_SCRIPT, null);
         view.evaluateJavascript(OPEN_APP_HIDING_SCRIPT, null);
         view.evaluateJavascript(AD_JSON_PRUNE_SCRIPT, null);

@@ -12,9 +12,9 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - a **Stats for nerds** overlay with live memory, network, and storage usage
 - password-protected **Kid mode** for playlist-only listening
 
-Kid mode, supported links, logging, and Stats for nerds are grouped under **Advanced**, which starts
-expanded whenever settings is opened with logging enabled, and collapsed otherwise.
-Tap **Advanced** to expand or collapse those controls.
+Kid mode, supported links, and Stats for nerds are grouped under **Advanced**, which starts
+collapsed. **Logging** is a separate section, expanded whenever settings is opened with logging
+enabled and collapsed otherwise. Tap either heading to expand or collapse its controls.
 **View log**, **Share log**, and **Clear log** appear together in one row.
 
 The YouTube Music wordmark in the page is replaced with the bundled ssMusic logo, which is served
@@ -101,7 +101,7 @@ every 30 seconds on a worker thread. Sampling stops when disabled or the app is 
 
 ## Logging
 
-Logging is off by default. Expand **Advanced** and turn on **Enable logging**, then choose:
+Logging is off by default. Expand **Logging** in settings and turn on **Enable logging**, then choose:
 
 - **Full logging**: the existing 512 KB rotation with one backup.
 - **Reactive logging**: keeps the latest 100 messages in one bounded file, dropping the oldest
@@ -127,6 +127,15 @@ records visited YouTube Music URLs and track metadata, only share it with people
 To diagnose swipes, enable logging, reproduce the gesture, then open **View log**. Native
 touch reception and gesture rejection/cancellation are logged as well as completed actions,
 so a gesture that never reaches the page's touch handlers is no longer silent.
+Detailed gesture diagnostics also record native touch coordinates, pointer/move counts,
+forwarding and handling results, and page touch/click delivery and default cancellation.
+An asynchronous native hit test and page event hit tests describe nearby element tags,
+bounds, visibility, and pointer-event state to help identify blocking overlays. A missing
+window-bubble observation can indicate stopped propagation, but does not identify which
+handler stopped it; a handled native event does not prove that a page action succeeded.
+These diagnostics run only with logging enabled, omit page text, form values, IDs, classes,
+and URLs, and do not cancel or synthesize gestures. Move events are counted rather than
+logged individually.
 
 The app requests the browser permissions YouTube Music may need, including camera, microphone, notification, and foreground playback permissions. When you send the app to the background, it keeps a low-priority playback notification active so music can continue playing.
 

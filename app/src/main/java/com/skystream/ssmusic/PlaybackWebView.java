@@ -16,6 +16,8 @@ public class PlaybackWebView extends WebView {
     private int swipePointer;
     private long swipeToken;
     private String swipeUrl;
+    private long touchSequence;
+    private int touchMoves;
 
     public PlaybackWebView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -48,6 +50,12 @@ public class PlaybackWebView extends WebView {
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            touchSequence++;
+            touchMoves = 0;
+        } else if (action == MotionEvent.ACTION_MOVE) {
+            touchMoves++;
+        }
         if (action == MotionEvent.ACTION_DOWN) {
             cancelMediaSwipe("new touch");
             swipeConsumed = false;
@@ -86,13 +94,15 @@ public class PlaybackWebView extends WebView {
                     // Chromium must see cancellation, never an UP that could click the video.
                     MotionEvent cancel = MotionEvent.obtain(event);
                     cancel.setAction(MotionEvent.ACTION_CANCEL);
-                    super.dispatchTouchEvent(cancel);
+                    boolean cancelHandled = super.dispatchTouchEvent(cancel);
                     cancel.recycle();
                     swipeConsumed = true;
                     if (getParent() != null) {
                         getParent().requestDisallowInterceptTouchEvent(true);
                     }
                     logSwipe("Native swipe intercepted; WebView touch cancelled");
+                    logSwipe("WebView touch #" + touchSequence + " synthetic ACTION_CANCEL handled="
+                            + cancelHandled);
                 }
             }
         }
@@ -112,7 +122,35 @@ public class PlaybackWebView extends WebView {
                 getParent().requestDisallowInterceptTouchEvent(false);
             }
         }
-        return consumed || super.dispatchTouchEvent(event);
+        boolean handled = consumed || super.dispatchTouchEvent(event);
+        if (Logger.isEnabled() && SiteScope.isPlaybackUrl(getUrl())
+                && action != MotionEvent.ACTION_MOVE) {
+            logSwipe("WebView touch #" + touchSequence + " " + MotionEvent.actionToString(action)
+                    + " x=" + Math.round(event.getX()) + " y=" + Math.round(event.getY())
+                    + " pointers=" + event.getPointerCount() + " moves=" + touchMoves
+                    + " elapsedMs=" + (event.getEventTime() - event.getDownTime())
+                    + " forwarded=" + !consumed + " handled=" + handled);
+            if (action == MotionEvent.ACTION_DOWN) {
+                logTouchTarget(event.getX(), event.getY(), touchSequence, getUrl());
+            }
+        }
+        return handled;
+    }
+
+    private void logTouchTarget(float x, float y, long sequence, String url) {
+        float fx = MediaSwipeGesture.viewportFraction(x, getWidth(), getPaddingLeft(), getPaddingRight());
+        float fy = MediaSwipeGesture.viewportFraction(y, getHeight(), getPaddingTop(), getPaddingBottom());
+        if (!MediaSwipeGesture.isFinite(fx) || !MediaSwipeGesture.isFinite(fy)) {
+            return;
+        }
+        evaluateJavascript("(function(){if(location.href!==" + MainActivity.jsStringLiteral(url)
+                + "){return 'page changed';}return window.__ssmusicGestureHitTest?"
+                + "window.__ssmusicGestureHitTest(" + fx + "," + fy + ")"
+                + ":'gesture diagnostics unavailable';})()", result -> {
+                    if (Logger.isEnabled() && java.util.Objects.equals(url, getUrl())) {
+                        logSwipe("WebView touch #" + sequence + " async hit test: " + result);
+                    }
+                });
     }
 
     private void checkMediaHit(float x, float y, long token, String url) {
