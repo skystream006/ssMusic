@@ -69,6 +69,31 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
+    public void thumbnailObserverReconnectsAndTracksArtworkOutsidePlayer() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertFalse(script.contains("observed===target"));
+        assertTrue(script.contains("observer.observe(document,{childList:true,subtree:true,attributes:true,"));
+        assertTrue(script.contains("attributeFilter:['src','srcset']"));
+        assertTrue(script.contains("ytmusic-player-page #song-image img"));
+        assertTrue(script.contains("if(image.id===COVER_ID){continue;}"));
+        assertTrue(script.contains("cover.onload=function(){scheduleApply();}"));
+        assertTrue(script.contains("var ready=cover.complete&&cover.naturalWidth>0;"));
+        assertTrue(script.contains("if(ready){conceal(node);}else{reveal();}"));
+    }
+
+    @Test
+    public void reinjectionReusesThumbnailControllerInsteadOfInstallingStaleClosures() {
+        String script = MainActivity.videoDisplayScript(
+                false, "Show thumbnail", "Play video", "Song thumbnail");
+        int reuse = script.indexOf("if(window.__ssmusicVideoDisplayInstalled){"
+                + "window.__ssmusicSetVideoThumbnailDefault(DEFAULT);return;}");
+        assertTrue(reuse >= 0);
+        assertTrue(reuse < script.indexOf("var showing="));
+        assertTrue(reuse < script.indexOf("var observer=null;"));
+    }
+
+    @Test
     public void thumbnailUsesUntransformedHostCoordinatesIncludingBordersAndScroll() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
@@ -97,7 +122,7 @@ public class MainActivityAppLogoTest {
     }
 
     @Test
-    public void videoDisplaySwipeDownUsesAppPresentationOnlyAfterGenerationAndMediaGuards() {
+    public void videoDisplaySwipeDownMinimizesOnlyAfterGenerationAndMediaGuards() {
         for (boolean showThumbnail : new boolean[]{true, false}) {
             String script = MainActivity.videoDisplayScript(
                     showThumbnail, "Show thumbnail", "Play video", "Song thumbnail");
@@ -110,8 +135,8 @@ public class MainActivityAppLogoTest {
             assertTrue(script.indexOf("gesture.id!==id") < compactDispatch);
             assertTrue(script.indexOf("return 'rejected: unknown direction'") < compactDispatch);
             assertTrue(compactDispatch < script.indexOf("var control=swipeControl(action)"));
-            assertTrue(script.contains("return 'Media player swipe down: compact '"
-                    + "+(compact&&compact.compact()?'applied':'unavailable');}"));
+            assertTrue(script.contains("return 'Media player swipe down: '"
+                    + "+(compact?compact.minimize():'controller unavailable');}"));
             assertTrue(script.contains("!control.disabled&&!control.hasAttribute('disabled')"
                     + "&&control.getAttribute('aria-disabled')!=='true'"));
             assertTrue(script.contains("rect.width>0&&rect.height>0"

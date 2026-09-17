@@ -71,7 +71,7 @@ public class CompactPlayerScriptTest {
         String script = script();
         assertTrue(script.contains("ytmusic-player-page .player-minimize-button"));
         assertTrue(script.contains("ytmusic-player-bar .toggle-player-page-button"));
-        assertTrue(script.contains("control.getAttribute('aria-disabled') === 'true'"));
+        assertTrue(script.contains("control.getAttribute('aria-disabled') !== 'true'"));
         assertTrue(script.contains("event.stopImmediatePropagation()"));
         assertTrue(script.contains("button.type = 'button'"));
         assertTrue(script.contains("button.setAttribute('aria-expanded', expanded)"));
@@ -79,7 +79,27 @@ public class CompactPlayerScriptTest {
         assertFalse(script.contains(".next-button"));
         assertFalse(script.contains(".previous-button"));
         assertFalse(script.contains(".play-pause-button"));
-        assertFalse(script.contains("control.click()"));
+        assertTrue(script.contains("control.click()"));
+    }
+
+    @Test
+    public void unavailableCompactModePreservesNativeMinimizeAndProvidesSwipeFallback() throws IOException {
+        String script = script();
+        String toggle = script.substring(script.indexOf("function toggle("),
+                script.indexOf("button.addEventListener('click', toggle)"));
+        assertTrue(toggle.contains("if (active ? expand() : compact()) {\n            cancel(event);"));
+        assertTrue(script.contains("minimize: minimize"));
+        assertTrue(script.contains("if (compact()) {\n            return 'compact applied';"));
+        assertTrue(script.contains("document.querySelectorAll(minimizeControls)"));
+        assertTrue(script.contains("!enabled(control) || !expanded(control)"));
+        assertTrue(script.contains("rect.width <= 0 || rect.height <= 0"));
+        assertTrue(script.contains("control.closest('[hidden],[inert],[aria-hidden=\"true\"]')"));
+        assertTrue(script.contains("nativeMinimizing = true;\n            try {"));
+        assertTrue(script.contains("} finally {\n                nativeMinimizing = false;"));
+        assertTrue(script.contains("if (nativeMinimizing || suspended)"));
+        assertTrue(script.contains("native minimize control clicked"));
+        assertTrue(script.contains("unavailable: no native minimize control"));
+        assertTrue(script.contains("unsupported structure or player state"));
     }
 
     @Test

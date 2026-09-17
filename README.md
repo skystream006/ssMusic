@@ -31,8 +31,10 @@ buttons use this app presentation while expanded. ssMusic does not replace/reloa
 YouTube Music's internal player state, or resume an intentional pause. Track changes can continue
 in compact mode while the same player remains expanded internally. If navigation changes that state,
 the player is replaced, or fullscreen begins, compact presentation is removed rather than forcing
-the site's state back. Unsupported page structures leave swipe-down unavailable, without falling
-back to native minimize. This depends on YouTube Music's DOM and is not a verified workaround for
+the site's state back. On unsupported page structures, the minimize icon retains its normal site
+action and swipe-down clicks an available native minimize control instead. This fallback can trigger
+the site's playback restrictions; it does not force playback to resume. Compact mode depends on
+YouTube Music's DOM and is not a verified workaround for
 site playback restrictions. Live YouTube Music was unavailable during development; checks used
 a synthetic browser page, not the live site. Browsing/navigation may still trigger site playback
 restrictions. Live playback, browsing, and restricted-content behavior require device verification.
