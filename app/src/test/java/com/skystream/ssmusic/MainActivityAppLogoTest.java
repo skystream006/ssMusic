@@ -78,6 +78,9 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("ytmusic-player-page #song-image img"));
         assertTrue(script.contains("if(image.id===COVER_ID){continue;}"));
         assertTrue(script.contains("cover.onload=function(){scheduleApply();}"));
+        assertTrue(script.contains("document.addEventListener('load',function(event){"));
+        assertTrue(script.contains(
+                "event.target instanceof HTMLImageElement&&event.target.id!==COVER_ID"));
         assertTrue(script.contains("var ready=cover.complete&&cover.naturalWidth>0;"));
         assertTrue(script.contains("if(ready){conceal(node);}else{reveal();}"));
     }
