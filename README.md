@@ -11,6 +11,7 @@ ssMusic is a Chromium WebView-based Android app dedicated to YouTube Music. It o
 - optional debug logging
 - a **Stats for nerds** overlay with live memory, network, and storage usage
 - password-protected **Kid mode** for playlist-only listening
+- browser-based **Login to Music Server** and playlist/song jobs for [ssYTDLP_Server](https://github.com/skystream006/ssYTDLP_Server)
 
 Kid mode, supported links, and Stats for nerds are grouped under **Advanced**, which starts
 collapsed. **Logging** is a separate section, expanded whenever settings is opened with logging
@@ -46,6 +47,36 @@ panel, enable the Android setting, and select `music.youtube.com` if prompted. A
 opens the app's link settings directly; older devices (or devices without that screen)
 open App info, where **Open by default** can be configured. Android requires user approval;
 the app cannot silently make itself the default link handler.
+
+## Music Server
+
+In Preferences, choose **Login to Music Server** and enter your server's HTTPS
+`PASSKEY_ORIGIN`, including its port (for example, `https://music.example.com:4000`).
+Register a passkey and obtain account approval in the server's web UI first.
+The address must be reachable from your phone and its certificate trusted by both
+Android and your browser; ssMusic never bypasses TLS verification.
+
+Login opens in your external browser for passkey authorization, then returns through
+`com.ssytdlp.app:/oauth/callback`. If Android asks which app to use, choose ssMusic.
+The server currently requires this shared callback scheme; another installed
+ssYTDLP client may also claim it. PKCE protects the authorization code.
+Login state and sessions are encrypted with Android Keystore-backed keys in
+app-private, non-backed-up storage. If you close the browser without completing
+login, choose **Cancel server login** in Preferences before trying again.
+
+Once logged in:
+- **Send current playlist to Music Server** sends the current page URL to
+  `POST /api/jobs`. It only appears when the page has a nonempty `list` parameter,
+  and updates while Preferences stays open.
+- **Send current song to Music Server** reads the current player track and sends
+  a standalone `https://music.youtube.com/watch?v=…` URL without playlist, radio,
+  index, or tracking parameters, even when browsing another page during playback.
+  Start a song first if no current player track is available.
+- **Log out of Music Server** removes the saved login. Log in again to switch servers.
+
+Expired or rejected sessions require a new browser login. Requests report success
+or failure and are not automatically retried, avoiding duplicate jobs after an
+uncertain network result. This login is separate from YouTube Music sign-in.
 
 ## Kid mode
 

@@ -65,6 +65,21 @@ public class PreferencesLayoutTest {
     }
 
     @Test
+    public void musicServerControlsAreOutsideCollapsedSectionsAndStartLoggedOut() throws Exception {
+        Document layout = readResource("layout/dialog_preferences.xml");
+        for (String id : new String[]{"music_server_login", "music_server_cancel",
+                "music_server_playlist", "music_server_song", "music_server_logout"}) {
+            Element button = findById(layout, id);
+            assertSame(layout.getDocumentElement(), button.getParentNode());
+            assertEquals("Button", button.getTagName());
+            assertEquals("@string/" + id, button.getAttributeNS(ANDROID, "text"));
+            if (!"music_server_login".equals(id)) {
+                assertEquals("gone", button.getAttributeNS(ANDROID, "visibility"));
+            }
+        }
+    }
+
+    @Test
     public void advancedStartsCollapsedAndContainsOnlyAdvancedSettings() throws Exception {
         Document layout = readResource("layout/dialog_preferences.xml");
         Element advanced = findById(layout, "advanced_settings");
