@@ -81,6 +81,65 @@
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="12sp" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/music_server"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/music_server_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/music_server_summary"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/music_server_login"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/music_server_login"
+        android:textAllCaps="false" />
+
+    <Button
+        android:id="@+id/music_server_cancel"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/music_server_cancel"
+        android:textAllCaps="false"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/music_server_playlist"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/music_server_playlist"
+        android:textAllCaps="false"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/music_server_song"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/music_server_song"
+        android:textAllCaps="false"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/music_server_logout"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/music_server_logout"
+        android:textAllCaps="false"
+        android:visibility="gone" />
+
     <Button
         android:id="@+id/advanced_button"
         style="?android:attr/borderlessButtonStyle"

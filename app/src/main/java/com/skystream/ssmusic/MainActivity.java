@@ -807,6 +807,7 @@ public class MainActivity extends AppCompatActivity {
     private View statsOverlay;
     private StatsMonitor statsMonitor;
     private AppUpdater appUpdater;
+    private MusicServerPreferences musicServerPreferences;
     private SharedPreferences preferences;
     private final ExecutorService passwordExecutor = Executors.newSingleThreadExecutor();
     private ScriptHandler kidModeScriptHandler;
@@ -876,6 +877,7 @@ public class MainActivity extends AppCompatActivity {
         statsOverlay = findViewById(R.id.stats_overlay);
         statsMonitor = new StatsMonitor(this, findViewById(R.id.stats_values));
         appUpdater = new AppUpdater(this);
+        musicServerPreferences = new MusicServerPreferences(this, webView);
         setStatsForNerdsEnabled(preferences.getBoolean(KEY_STATS_FOR_NERDS, false));
         settingsButton = findViewById(R.id.settings_button);
         settingsButton.setOnClickListener(v -> {
@@ -904,6 +906,7 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             appUpdater.checkForUpdates(false);
         }
+        musicServerPreferences.handleIntent(getIntent());
     }
 
     @Override
@@ -977,6 +980,7 @@ public class MainActivity extends AppCompatActivity {
         logoInjectionHandler.removeCallbacksAndMessages(null);
         statsMonitor.destroy();
         appUpdater.destroy();
+        musicServerPreferences.destroy();
         passwordExecutor.shutdown();
         if (mediaCommandReceiverRegistered) {
             unregisterReceiver(mediaCommandReceiver);
@@ -1006,6 +1010,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (musicServerPreferences.handleIntent(intent)) {
+            return;
+        }
         String target = urlFromIntent(intent);
         Logger.event(TAG, "onNewIntent, target: " + target);
         if (target != null) {
@@ -1300,6 +1307,7 @@ public class MainActivity extends AppCompatActivity {
                 .setCustomTitle(header)
                 .setView(scrollView)
                 .create();
+        musicServerPreferences.bind(content, dialog);
         content.findViewById(R.id.back_button).setOnClickListener(v -> {
             dialog.dismiss();
             goHistory(false);
