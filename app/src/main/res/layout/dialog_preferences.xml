@@ -81,64 +81,111 @@
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="12sp" />
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/music_server_panel"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="@string/music_server"
-        android:textStyle="bold" />
+        android:background="@drawable/bg_preferences_panel"
+        android:orientation="vertical"
+        android:padding="8dp">
 
-    <TextView
-        android:id="@+id/music_server_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/music_server_summary"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="12sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/music_server"
+            android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/music_server_login"
-        style="?android:attr/borderlessButtonStyle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/music_server_login"
-        android:textAllCaps="false" />
+        <TextView
+            android:id="@+id/music_server_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/music_server_summary"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
 
-    <Button
-        android:id="@+id/music_server_cancel"
-        style="?android:attr/borderlessButtonStyle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/music_server_cancel"
-        android:textAllCaps="false"
-        android:visibility="gone" />
+        <LinearLayout
+            android:id="@+id/music_server_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/music_server_playlist"
-        style="?android:attr/borderlessButtonStyle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/music_server_playlist"
-        android:textAllCaps="false"
-        android:visibility="gone" />
+            <Button
+                android:id="@+id/music_server_login"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:contentDescription="@string/music_server_login"
+                android:text="@string/music_server_login_short"
+                android:textAllCaps="false" />
 
-    <Button
-        android:id="@+id/music_server_song"
-        style="?android:attr/borderlessButtonStyle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/music_server_song"
-        android:textAllCaps="false"
-        android:visibility="gone" />
+            <Button
+                android:id="@+id/music_server_cancel"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:contentDescription="@string/music_server_cancel"
+                android:text="@string/music_server_cancel_short"
+                android:textAllCaps="false"
+                android:visibility="gone" />
 
-    <Button
-        android:id="@+id/music_server_logout"
-        style="?android:attr/borderlessButtonStyle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/music_server_logout"
-        android:textAllCaps="false"
-        android:visibility="gone" />
+            <Button
+                android:id="@+id/music_server_playlist"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:contentDescription="@string/music_server_playlist"
+                android:text="@string/music_server_playlist_short"
+                android:textAllCaps="false"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/music_server_song"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:contentDescription="@string/music_server_song"
+                android:text="@string/music_server_song_short"
+                android:textAllCaps="false"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/music_server_logout"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:contentDescription="@string/music_server_logout"
+                android:text="@string/music_server_logout_short"
+                android:textAllCaps="false"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
 
     <Button
         android:id="@+id/advanced_button"
