@@ -67,16 +67,45 @@ public class PreferencesLayoutTest {
     @Test
     public void musicServerControlsAreOutsideCollapsedSectionsAndStartLoggedOut() throws Exception {
         Document layout = readResource("layout/dialog_preferences.xml");
+        Element panel = findById(layout, "music_server_panel");
+        Element row = findById(layout, "music_server_actions");
+        assertSame(layout.getDocumentElement(), panel.getParentNode());
+        assertSame(panel, row.getParentNode());
+        assertSame(panel, findById(layout, "music_server_status").getParentNode());
+        assertFalse(panel.hasAttributeNS(ANDROID, "visibility"));
+        assertEquals("horizontal", row.getAttributeNS(ANDROID, "orientation"));
+        assertEquals(5, row.getElementsByTagName("Button").getLength());
         for (String id : new String[]{"music_server_login", "music_server_cancel",
                 "music_server_playlist", "music_server_song", "music_server_logout"}) {
             Element button = findById(layout, id);
-            assertSame(layout.getDocumentElement(), button.getParentNode());
+            assertSame(row, button.getParentNode());
             assertEquals("Button", button.getTagName());
-            assertEquals("@string/" + id, button.getAttributeNS(ANDROID, "text"));
+            assertEquals("@string/" + id + "_short", button.getAttributeNS(ANDROID, "text"));
+            assertEquals("@string/" + id, button.getAttributeNS(ANDROID, "contentDescription"));
+            assertEquals("0dp", button.getAttributeNS(ANDROID, "layout_width"));
+            assertEquals("1", button.getAttributeNS(ANDROID, "layout_weight"));
+            assertEquals("0dp", button.getAttributeNS(ANDROID, "minWidth"));
+            assertEquals("48dp", button.getAttributeNS(ANDROID, "minHeight"));
+            assertEquals("wrap_content", button.getAttributeNS(ANDROID, "layout_height"));
+            assertFalse(button.hasAttributeNS(ANDROID, "maxLines"));
             if (!"music_server_login".equals(id)) {
                 assertEquals("gone", button.getAttributeNS(ANDROID, "visibility"));
+            } else {
+                assertFalse(button.hasAttributeNS(ANDROID, "visibility"));
             }
         }
+    }
+
+    @Test
+    public void musicServerPanelHasRoundedThemeAwareShading() throws Exception {
+        Element panel = findById(readResource("layout/dialog_preferences.xml"), "music_server_panel");
+        assertEquals("@drawable/bg_preferences_panel", panel.getAttributeNS(ANDROID, "background"));
+        assertEquals("8dp", panel.getAttributeNS(ANDROID, "padding"));
+        Document background = readResource("drawable/bg_preferences_panel.xml");
+        Element solid = (Element) background.getElementsByTagName("solid").item(0);
+        assertEquals("?android:attr/colorControlHighlight", solid.getAttributeNS(ANDROID, "color"));
+        Element corners = (Element) background.getElementsByTagName("corners").item(0);
+        assertEquals("12dp", corners.getAttributeNS(ANDROID, "radius"));
     }
 
     @Test

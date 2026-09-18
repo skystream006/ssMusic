@@ -4,6 +4,11 @@
     <string name="settings">Settings</string>
     <string name="preferences">Preferences</string>
     <string name="music_server">Music Server</string>
+    <string name="music_server_login_short">Log in</string>
+    <string name="music_server_cancel_short">Cancel</string>
+    <string name="music_server_logout_short">Log out</string>
+    <string name="music_server_playlist_short">Send playlist</string>
+    <string name="music_server_song_short">Send song</string>
     <string name="music_server_summary">Log in to ssYTDLP_Server to send playlists and songs for download.</string>
     <string name="music_server_login">Login to Music Server</string>
     <string name="music_server_cancel">Cancel server login</string>
