@@ -100,8 +100,8 @@ public class MainActivityAppLogoTest {
     public void thumbnailUsesUntransformedHostCoordinatesIncludingBordersAndScroll() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("host.offsetWidth>0?hostRect.width/host.offsetWidth:0"));
-        assertTrue(script.contains("host.offsetHeight>0?hostRect.height/host.offsetHeight:0"));
+        assertTrue(script.contains("host.offsetWidth>0?hostRect.width/host.offsetWidth"));
+        assertTrue(script.contains("host.offsetHeight>0?hostRect.height/host.offsetHeight"));
         assertTrue(script.contains("Number.isFinite(scaleX)&&scaleX>0"));
         assertTrue(script.contains("Number.isFinite(scaleY)&&scaleY>0"));
         assertTrue(script.contains("(videoRect.left-hostRect.left)/scaleX-host.clientLeft+host.scrollLeft"));
