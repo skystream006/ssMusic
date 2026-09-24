@@ -100,8 +100,8 @@ public class MainActivityAppLogoTest {
     public void thumbnailUsesUntransformedHostCoordinatesIncludingBordersAndScroll() {
         String script = MainActivity.videoDisplayScript(
                 true, "Show thumbnail", "Play video", "Song thumbnail");
-        assertTrue(script.contains("host.offsetWidth>0?hostRect.width/host.offsetWidth:0"));
-        assertTrue(script.contains("host.offsetHeight>0?hostRect.height/host.offsetHeight:0"));
+        assertTrue(script.contains("host.offsetWidth>0?hostRect.width/host.offsetWidth"));
+        assertTrue(script.contains("host.offsetHeight>0?hostRect.height/host.offsetHeight"));
         assertTrue(script.contains("Number.isFinite(scaleX)&&scaleX>0"));
         assertTrue(script.contains("Number.isFinite(scaleY)&&scaleY>0"));
         assertTrue(script.contains("(videoRect.left-hostRect.left)/scaleX-host.clientLeft+host.scrollLeft"));
@@ -111,6 +111,19 @@ public class MainActivityAppLogoTest {
         assertTrue(script.contains("cover.style.setProperty('width','100%','important')"));
         assertTrue(script.contains("cover.style.setProperty('height','100%','important')"));
         assertTrue(script.contains("node.style.setProperty('opacity',hiddenOpacity,hiddenPriority)"));
+    }
+
+    @Test
+    public void thumbnailUsesVideoScaleWhenAbsolutelyPositionedVideoDoesNotSizeItsHost() {
+        String script = MainActivity.videoDisplayScript(
+                true, "Show thumbnail", "Play video", "Song thumbnail");
+        assertTrue(script.contains("var scaleX=host.offsetWidth>0?hostRect.width/host.offsetWidth"
+                + ":node.offsetWidth>0?videoRect.width/node.offsetWidth:0;"));
+        assertTrue(script.contains("var scaleY=host.offsetHeight>0?hostRect.height/host.offsetHeight"
+                + ":node.offsetHeight>0?videoRect.height/node.offsetHeight:0;"));
+        assertTrue(script.contains("cover.style.setProperty('width',(videoRect.width/scaleX)+'px'"));
+        assertTrue(script.contains("cover.style.setProperty('height',(videoRect.height/scaleY)+'px'"));
+        assertTrue(script.contains("if(ready){conceal(node);}else{reveal();}"));
     }
 
     @Test
