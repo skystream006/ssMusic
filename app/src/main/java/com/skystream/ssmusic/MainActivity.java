@@ -627,8 +627,11 @@ public class MainActivity extends AppCompatActivity {
                 + "var videoRect=node.getBoundingClientRect();"
                 + "var hostRect=host.getBoundingClientRect();"
                 // Bounding rectangles include compact-player scaling; CSS offsets do not.
-                + "var scaleX=host.offsetWidth>0?hostRect.width/host.offsetWidth:0;"
-                + "var scaleY=host.offsetHeight>0?hostRect.height/host.offsetHeight:0;"
+                // Absolutely positioned videos can have a zero-size parent; use the video scale then.
+                + "var scaleX=host.offsetWidth>0?hostRect.width/host.offsetWidth"
+                + ":node.offsetWidth>0?videoRect.width/node.offsetWidth:0;"
+                + "var scaleY=host.offsetHeight>0?hostRect.height/host.offsetHeight"
+                + ":node.offsetHeight>0?videoRect.height/node.offsetHeight:0;"
                 + "if(videoRect.width>0&&videoRect.height>0&&Number.isFinite(scaleX)&&scaleX>0"
                 + "&&Number.isFinite(scaleY)&&scaleY>0){"
                 + "cover.style.setProperty('left',((videoRect.left-hostRect.left)/scaleX"
