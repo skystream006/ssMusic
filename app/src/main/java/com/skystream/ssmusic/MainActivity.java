@@ -814,6 +814,7 @@ public class MainActivity extends AppCompatActivity {
     private String kidModeScript;
     private String compactPlayerScript;
     private String gestureDiagnosticsScript;
+    private String pointerEventsScript;
     private boolean clearHistoryAfterLoad;
     private PermissionRequest pendingPermissionRequest;
     private volatile boolean playbackActive;
@@ -1138,6 +1139,23 @@ public class MainActivity extends AppCompatActivity {
         }
         return "window.__ssmusicGestureLoggingEnabled=" + Logger.isEnabled() + ";"
                 + gestureDiagnosticsScript;
+    }
+
+    private String pointerEventsScript() {
+        if (pointerEventsScript == null) {
+            try (InputStream input = getAssets().open("pointer_events.js");
+                    ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                }
+                pointerEventsScript = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new IllegalStateException("Pointer events script unavailable", e);
+            }
+        }
+        return pointerEventsScript;
     }
 
     private void updateGestureLogging() {
@@ -1704,6 +1722,7 @@ public class MainActivity extends AppCompatActivity {
             view.evaluateJavascript(BACKGROUND_PLAYBACK_SCRIPT, null);
         }
         view.evaluateJavascript(AD_HIDING_SCRIPT, null);
+        view.evaluateJavascript(pointerEventsScript(), null);
         view.evaluateJavascript(gestureDiagnosticsScript(), null);
         view.evaluateJavascript(SONG_REFRESH_SCRIPT, null);
         view.evaluateJavascript(OPEN_APP_HIDING_SCRIPT, null);
