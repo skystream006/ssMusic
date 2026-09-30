@@ -38,12 +38,18 @@ final class UpdateClient {
     }
 
     File download(String address, long expectedSize, File directory) throws IOException {
+        return download(address, expectedSize, directory, null);
+    }
+
+    File download(String address, long expectedSize, File directory, ProgressListener progress)
+            throws IOException {
         if (expectedSize <= 0 || expectedSize > UpdatePolicy.MAX_APK_BYTES) {
             throw new IOException("Invalid APK size");
         }
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("Cannot create update directory");
         }
+        if (progress != null) progress.onProgress(0, expectedSize);
         long deadline = deadline(180);
         HttpsURLConnection connection = open(new URL(address), false, deadline);
         try {
@@ -52,7 +58,7 @@ final class UpdateClient {
                 throw new IOException("Unexpected content length");
             }
             try (InputStream input = connection.getInputStream()) {
-                return saveAtomically(input, directory, expectedSize, () -> check(deadline));
+                return saveAtomically(input, directory, expectedSize, () -> check(deadline), progress);
             }
         } finally {
             close(connection);
@@ -134,8 +140,17 @@ final class UpdateClient {
         void run() throws IOException;
     }
 
+    interface ProgressListener {
+        void onProgress(long downloadedBytes, long totalBytes);
+    }
+
     static void copy(InputStream input, OutputStream output, long limit, long expectedSize,
             Check check) throws IOException {
+        copy(input, output, limit, expectedSize, check, null);
+    }
+
+    static void copy(InputStream input, OutputStream output, long limit, long expectedSize,
+            Check check, ProgressListener progress) throws IOException {
         byte[] buffer = new byte[16384];
         long total = 0;
         while (true) {
@@ -148,20 +163,31 @@ final class UpdateClient {
                 throw new IOException("Response too large");
             }
             output.write(buffer, 0, count);
+            if (progress != null && total != expectedSize) {
+                progress.onProgress(total, expectedSize);
+            }
         }
         if (expectedSize >= 0 && total != expectedSize) {
             throw new IOException("Truncated response");
+        }
+        if (progress != null && expectedSize >= 0) {
+            progress.onProgress(total, expectedSize);
         }
     }
 
     static File saveAtomically(InputStream input, File directory, long expectedSize, Check check)
             throws IOException {
+        return saveAtomically(input, directory, expectedSize, check, null);
+    }
+
+    static File saveAtomically(InputStream input, File directory, long expectedSize, Check check,
+            ProgressListener progress) throws IOException {
         File target = new File(directory, UUID.randomUUID() + ".apk");
         File partial = new File(directory, target.getName() + ".part");
         boolean complete = false;
         try {
             try (FileOutputStream output = new FileOutputStream(partial)) {
-                copy(input, output, UpdatePolicy.MAX_APK_BYTES, expectedSize, check);
+                copy(input, output, UpdatePolicy.MAX_APK_BYTES, expectedSize, check, progress);
                 output.getFD().sync();
             }
             check.run();

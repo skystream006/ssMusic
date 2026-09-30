@@ -110,7 +110,9 @@ not download or install anything.
 
 Choose **Check for updates** in settings to check manually. If already current, a toast
 shows **App is up to date with latest version {version}**. If behind, the app downloads
-the release APK into its private storage and opens Android's installer. On Android 8+,
+the release APK into its private storage, showing a progress bar and downloaded/total KB
+below the update button, then opens Android's installer. Closing settings does not stop
+the download; reopening settings shows its current progress. On Android 8+,
 allow installation from ssMusic if prompted, then return to the app to continue.
 Android requires your confirmation and a compatible signing key; updates are never
 installed silently. Checking and downloading require an internet connection.

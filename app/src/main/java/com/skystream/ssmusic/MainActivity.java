@@ -1202,6 +1202,7 @@ public class MainActivity extends AppCompatActivity {
         version.setText(getString(R.string.app_version_format, BuildConfig.VERSION_NAME));
         header.findViewById(R.id.check_updates_button)
                 .setOnClickListener(v -> appUpdater.checkForUpdates(true));
+        appUpdater.bindProgress(header);
 
         Spinner themeSpinner = content.findViewById(R.id.theme_spinner);
         int theme = preferences.getInt(KEY_THEME, Preferences.THEME_SYSTEM);
