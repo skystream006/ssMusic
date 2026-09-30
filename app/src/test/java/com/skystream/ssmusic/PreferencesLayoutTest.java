@@ -171,6 +171,24 @@ public class PreferencesLayoutTest {
     }
 
     @Test
+    public void updateProgressStartsHiddenBelowUpdateControls() throws Exception {
+        Document layout = readResource("layout/preferences_header.xml");
+        Element progress = findById(layout, "update_download_progress");
+        Element bar = findById(layout, "update_progress_bar");
+        Element text = findById(layout, "update_progress_text");
+        Element version = findById(layout, "app_version");
+        assertSame(version.getParentNode(), progress.getParentNode());
+        assertEquals(Node.DOCUMENT_POSITION_FOLLOWING, version.compareDocumentPosition(progress));
+        assertEquals("gone", progress.getAttributeNS(ANDROID, "visibility"));
+        assertSame(progress, bar.getParentNode());
+        assertSame(progress, text.getParentNode());
+        assertEquals("?android:attr/progressBarStyleHorizontal", bar.getAttribute("style"));
+        assertEquals("100", bar.getAttributeNS(ANDROID, "max"));
+        assertEquals("true", bar.getAttributeNS(ANDROID, "indeterminate"));
+        assertEquals("@string/update_downloading", bar.getAttributeNS(ANDROID, "contentDescription"));
+    }
+
+    @Test
     public void navigationControlsRemainWithoutHeading() throws Exception {
         Document layout = readResource("layout/dialog_preferences.xml");
         NodeList labels = layout.getElementsByTagName("TextView");

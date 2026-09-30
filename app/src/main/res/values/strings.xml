@@ -30,6 +30,7 @@
     <string name="update_check">Check for updates</string>
     <string name="update_checking">Checking for updates…</string>
     <string name="update_downloading">Downloading update…</string>
+    <string name="update_download_progress">%1$d / %2$d KB</string>
     <string name="update_up_to_date">App is up to date with latest version %1$s</string>
     <string name="update_available">Update available to version %1$s</string>
     <string name="update_newer_installed">A newer app version is already installed.</string>

@@ -11,7 +11,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.After;
@@ -146,6 +150,95 @@ public class UpdateClientTest {
                 assertEquals(0, directory.listFiles().length);
             }
         }
+    }
+
+    @Test
+    public void progressReportsWrittenBytesMonotonicallyAndFinishesAtExpectedSize() throws Exception {
+        byte[] data = new byte[32769];
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        List<Long> progress = new ArrayList<>();
+        UpdateClient.copy(new ByteArrayInputStream(data), output, data.length, data.length,
+                () -> {}, (bytes, total) -> {
+                    assertEquals(data.length, total);
+                    assertEquals(output.size(), bytes);
+                    progress.add(bytes);
+                });
+        assertEquals(Arrays.asList(16384L, 32768L, 32769L), progress);
+        assertArrayEquals(data, output.toByteArray());
+    }
+
+    @Test
+    public void progressAlsoWorksWithoutADeclaredLength() throws Exception {
+        List<Long> progress = new ArrayList<>();
+        UpdateClient.copy(stream(), new ByteArrayOutputStream(), 3, -1, () -> {},
+                (bytes, total) -> {
+                    assertEquals(-1, total);
+                    progress.add(bytes);
+                });
+        assertEquals(Arrays.asList(3L), progress);
+    }
+
+    @Test
+    public void progressDoesNotReportCompletionForTruncatedOrOversizedDownloads() throws Exception {
+        for (int expectedSize : new int[]{16384, 32769}) {
+            List<Long> progress = new ArrayList<>();
+            try {
+                UpdateClient.saveAtomically(new ByteArrayInputStream(new byte[16385]),
+                        directory, expectedSize, () -> {}, (bytes, total) -> {
+                            assertEquals(expectedSize, total);
+                            assertTrue(bytes < total);
+                            progress.add(bytes);
+                        });
+                fail("Accepted invalid download");
+            } catch (IOException expected) {
+                assertEquals(0, directory.listFiles().length);
+                assertEquals(expectedSize == 16384 ? Arrays.<Long>asList()
+                        : Arrays.asList(16384L, 16385L), progress);
+            }
+        }
+    }
+
+    @Test
+    public void cancellationStopsProgressAndDeletesPartialDownload() throws Exception {
+        List<Long> progress = new ArrayList<>();
+        try {
+            UpdateClient.saveAtomically(new ByteArrayInputStream(new byte[32769]),
+                    directory, 32769, () -> {
+                        if (!progress.isEmpty()) throw new InterruptedIOException("Cancelled");
+                    }, (bytes, total) -> progress.add(bytes));
+            fail("Ignored cancellation");
+        } catch (InterruptedIOException expected) {
+            assertEquals(Arrays.asList(16384L), progress);
+            assertEquals(0, directory.listFiles().length);
+        }
+    }
+
+    @Test
+    public void failedWritesDoNotAdvanceProgress() throws Exception {
+        List<Long> progress = new ArrayList<>();
+        OutputStream failingOutput = new OutputStream() {
+            @Override
+            public void write(int value) throws IOException {
+                throw new IOException("Storage full");
+            }
+        };
+        try {
+            UpdateClient.copy(stream(), failingOutput, 3, 3, () -> {},
+                    (bytes, total) -> progress.add(bytes));
+            fail("Ignored write failure");
+        } catch (IOException expected) {
+            assertTrue(progress.isEmpty());
+        }
+    }
+
+    @Test
+    public void completedDownloadWithProgressIsStillSavedAtomically() throws Exception {
+        List<Long> progress = new ArrayList<>();
+        File result = UpdateClient.saveAtomically(stream(), directory, 3, () -> {},
+                (bytes, total) -> progress.add(bytes));
+        assertEquals(Arrays.asList(3L), progress);
+        assertArrayEquals(new byte[]{1, 2, 3}, Files.readAllBytes(result.toPath()));
+        assertEquals(1, directory.listFiles().length);
     }
 
     private ByteArrayInputStream stream() {

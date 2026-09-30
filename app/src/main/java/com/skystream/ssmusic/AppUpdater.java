@@ -11,6 +11,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.view.View;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
@@ -43,6 +46,9 @@ public final class AppUpdater {
     private String pendingVersion;
     private int deferredMessage;
     private String deferredVersion;
+    private View progressHeader;
+    private long downloadedBytes;
+    private long downloadSize;
 
     public AppUpdater(Activity activity) {
         this.activity = activity;
@@ -104,6 +110,7 @@ public final class AppUpdater {
     public void onResume() {
         if (destroyed) return;
         resumed = true;
+        renderProgress();
         if (deferredMessage != 0) {
             message(deferredMessage, deferredVersion);
             deferredMessage = 0;
@@ -120,8 +127,50 @@ public final class AppUpdater {
     public void destroy() {
         destroyed = true;
         resumed = false;
+        progressHeader = null;
         client.cancel();
         executor.shutdownNow();
+    }
+
+    public void bindProgress(View header) {
+        if (destroyed) return;
+        progressHeader = header;
+        header.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(View view) {}
+
+            @Override
+            public void onViewDetachedFromWindow(View view) {
+                if (progressHeader == view) progressHeader = null;
+                view.removeOnAttachStateChangeListener(this);
+            }
+        });
+        renderProgress();
+    }
+
+    private void downloadProgress(long bytes, long total) {
+        if (destroyed || !downloading) return;
+        downloadedBytes = bytes;
+        downloadSize = total;
+        renderProgress();
+    }
+
+    private void renderProgress() {
+        if (destroyed || !resumed || progressHeader == null) return;
+        progressHeader.findViewById(R.id.check_updates_button).setEnabled(!downloading);
+        progressHeader.findViewById(R.id.update_download_progress)
+                .setVisibility(downloading ? View.VISIBLE : View.GONE);
+        if (!downloading) return;
+        ProgressBar bar = progressHeader.findViewById(R.id.update_progress_bar);
+        TextView text = progressHeader.findViewById(R.id.update_progress_text);
+        bar.setIndeterminate(downloadSize <= 0);
+        if (downloadSize > 0) {
+            bar.setProgress((int) (downloadedBytes * 100 / downloadSize));
+            text.setText(activity.getString(R.string.update_download_progress,
+                    downloadedBytes / 1024, downloadSize / 1024));
+        } else {
+            text.setText(R.string.update_downloading);
+        }
     }
 
     private void checked(String version, int comparison, JSONObject release) {
@@ -151,13 +200,24 @@ public final class AppUpdater {
             }
         }
         downloading = true;
+        downloadedBytes = 0;
+        downloadSize = 0;
+        renderProgress();
         message(R.string.update_downloading, null);
         executor.execute(() -> {
             File downloaded = null;
             try {
                 JSONObject asset = selectApk(release.getJSONArray("assets"));
+                int[] lastPercent = {-1};
                 downloaded = client.download(asset.getString("browser_download_url"),
-                        asset.getLong("size"), directory);
+                        asset.getLong("size"), directory, (bytes, total) -> {
+                            int percent = (int) (bytes * 100 / total);
+                            // Bound UI work to one callback per percentage point.
+                            if (percent != lastPercent[0]) {
+                                lastPercent[0] = percent;
+                                main.post(() -> downloadProgress(bytes, total));
+                            }
+                        });
                 verifyArchive(downloaded, version);
                 File result = downloaded;
                 main.post(() -> downloaded(result, version));
@@ -186,6 +246,7 @@ public final class AppUpdater {
             return;
         }
         downloading = false;
+        renderProgress();
         File old = storedApk();
         preferences.edit().putString("file", apk.getName()).putString("version", version)
                 .putBoolean("pending", true).putBoolean("auto_install", true)
@@ -218,6 +279,7 @@ public final class AppUpdater {
         if (destroyed) return;
         checking = false;
         downloading = false;
+        renderProgress();
         if (manualRequested) message(R.string.update_failed, null);
     }
 
